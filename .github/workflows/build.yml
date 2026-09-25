@@ -161,8 +161,23 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          ./build_windows.ps1 -CI -Platform windows,linux -Type cli -Silent
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:CGO_ENABLED = '0'
+          $targets = @(
+            @{ GOOS = 'windows'; GOARCH = 'amd64'; Out = 'build/bin/cli/Windows/x64/snishaper.exe' },
+            @{ GOOS = 'windows'; GOARCH = '386';   Out = 'build/bin/cli/Windows/x86/snishaper.exe' },
+            @{ GOOS = 'windows'; GOARCH = 'arm64'; Out = 'build/bin/cli/Windows/arm64/snishaper.exe' },
+            @{ GOOS = 'linux';   GOARCH = 'amd64'; Out = 'build/bin/cli/Linux/x64/snishaper' },
+            @{ GOOS = 'linux';   GOARCH = 'arm64'; Out = 'build/bin/cli/Linux/arm64/snishaper' }
+          )
+          foreach ($t in $targets) {
+            New-Item -ItemType Directory -Force -Path (Split-Path $t.Out) | Out-Null
+            $env:GOOS = $t.GOOS
+            $env:GOARCH = $t.GOARCH
+            Write-Host "Building $($t.GOOS)/$($t.GOARCH) -> $($t.Out)"
+            go build -tags "with_gvisor headless" -trimpath -o $t.Out ./cli
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
 
       - name: Verify all five targets exist
         shell: pwsh
