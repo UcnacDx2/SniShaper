@@ -179,6 +179,19 @@ jobs:
           }
           Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
 
+          # Bundle the repository rules with every CLI target so runtime rule loading
+          # does not fall back to an empty config.
+          $cliDirs = @(
+            'build/bin/cli/Windows/x64',
+            'build/bin/cli/Windows/x86',
+            'build/bin/cli/Windows/arm64',
+            'build/bin/cli/Linux/x64',
+            'build/bin/cli/Linux/arm64'
+          )
+          foreach ($dir in $cliDirs) {
+            Copy-Item -Recurse -Force 'rules' (Join-Path $dir 'rules')
+          }
+
       - name: Verify five targets and bundled rules
         shell: pwsh
         run: |
