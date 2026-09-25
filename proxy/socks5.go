@@ -130,9 +130,7 @@ func (p *ProxyServer) handleSocks5Connect(ctx context.Context, writer io.Writer,
 	// policy as HTTP CONNECT: probe ordinary TLS first, then retry with
 	// TLS-RF when the handshake path fails. This must happen before
 	// dialUpstream(), because the ordinary connection has to be probed first.
-	if cr.effectiveMode == "transparent" &&
-		strings.EqualFold(strings.TrimSpace(cr.rule.FallbackMode), "tls-rf") &&
-		port == 443 {
+	if shouldUseAdaptiveTLSRF(cr.rule, targetAddr) {
 		p.tracef("[SOCKS5] adaptive TLS-RF mode")
 		socks5.SendReply(writer, statute.RepSuccess, req.LocalAddr)
 		hijackConn := &socks5HijackConn{
