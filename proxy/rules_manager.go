@@ -258,8 +258,10 @@ func (r *RuleManager) matchRule(host, mode string) Rule {
 	}
 
 	// Persistent TLS-RF learning cache takes precedence over AutoRouter,
-	// but never overrides an explicit manual SiteGroup rule.
-	if r.isTLSRFCached(host) {
+	// but never overrides an explicit manual SiteGroup rule. We already hold
+	// rm.mu.RLock here, so inspect the map directly rather than taking another
+	// RLock on the same mutex.
+	if _, ok := r.tlsRFCache[host]; ok {
 		log.Printf("[Router] %s -> tls-rf (PersistentTLSRFCache)", host)
 		r.emitRouteEvent(host, "tls-rf")
 		return Rule{
