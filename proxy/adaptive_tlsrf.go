@@ -30,6 +30,12 @@ func isPersistentTLSRFSignal(err error) bool {
 }
 
 
+func shouldUseAdaptiveTLSRF(rule Rule, targetAddr string) bool {
+	return strings.EqualFold(strings.TrimSpace(rule.Mode), "transparent") &&
+		strings.EqualFold(strings.TrimSpace(rule.FallbackMode), "tls-rf") &&
+		portFromTargetAddr(targetAddr) == "443"
+}
+
 // handleAdaptiveTLSRF implements the default foreign HTTPS policy:
 //  1. send the original ClientHello over the normal transport;
 //  2. if the TLS response path fails, reconnect and resend the same ClientHello
