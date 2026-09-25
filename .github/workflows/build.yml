@@ -179,7 +179,7 @@ jobs:
           }
           Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
 
-      - name: Verify all five targets exist
+      - name: Verify five targets and bundled rules
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -192,7 +192,10 @@ jobs:
           )
           foreach ($f in $expected) {
             if (-not (Test-Path $f)) { Write-Host "::error::missing $f"; exit 1 }
+            $rules = Join-Path (Split-Path $f) 'rules\config.json'
+            if (-not (Test-Path $rules)) { Write-Host "::error::missing bundled rules $rules"; exit 1 }
             Write-Host "built: $f"
+            Write-Host "rules: $rules"
           }
 
       - name: Smoke test
@@ -209,19 +212,14 @@ jobs:
         with:
           name: snishaper-cli-${{ github.sha }}
           if-no-files-found: error
-          path: |
-            build/bin/cli/Windows/x64/snishaper.exe
-            build/bin/cli/Windows/x86/snishaper.exe
-            build/bin/cli/Windows/arm64/snishaper.exe
-            build/bin/cli/Linux/x64/snishaper
-            build/bin/cli/Linux/arm64/snishaper
+          path: build/bin/cli
 
       - name: Upload Windows x64 CLI
         uses: actions/upload-artifact@v7
         with:
           name: snishaper-cli-windows-x64-${{ github.sha }}
           if-no-files-found: error
-          path: build/bin/cli/Windows/x64/snishaper.exe
+          path: build/bin/cli/Windows/x64
 
   # ------------------------------------------------------------------
   # CLI: Darwin, built natively and smoke-tested on real macOS runners.
@@ -277,5 +275,5 @@ jobs:
         with:
           name: snishaper-cli-darwin-${{ matrix.arch }}-${{ github.sha }}
           if-no-files-found: error
-          path: build/bin/cli/Darwin/${{ matrix.arch }}/snishaper
+          path: build/bin/cli/Darwin/${{ matrix.arch }}
 
