@@ -151,6 +151,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: SOCKS loopback integration test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          go test ./proxy -run 'TestTLineSOCKS5OutboundLoop|TestTLineSOCKS5DisabledUsesDirectDial' -count=1 -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Build CLI targets
         shell: pwsh
         run: |
