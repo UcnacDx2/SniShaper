@@ -175,6 +175,51 @@ func TestTLineSOCKS5OutboundLoop(t *testing.T) {
 	}
 }
 
+func TestMainlandDestinationOverridesTLineTransport(t *testing.T) {
+	t.Setenv(tlineSOCKS5Env, "127.0.0.1:1")
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = conn.Write([]byte("MAINLAND_DIRECT"))
+	}()
+
+	p := NewProxyServer("127.0.0.1:1")
+	conn, err := p.dialWithRule(context.Background(), "tcp", ln.Addr().String(), Rule{
+		Transport: "tline",
+		Mode:      "transparent",
+	})
+	if err != nil {
+		t.Fatalf("mainland/private target should bypass T-Line: %v", err)
+	}
+	defer conn.Close()
+
+	buf := make([]byte, len("MAINLAND_DIRECT"))
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		t.Fatal(err)
+	}
+	if string(buf) != "MAINLAND_DIRECT" {
+		t.Fatalf("unexpected response %q", string(buf))
+	}
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("direct target did not finish")
+	}
+}
+
 func TestTLineTransportFailsClosedWithoutSOCKS5(t *testing.T) {
 	t.Setenv(tlineSOCKS5Env, "")
 
