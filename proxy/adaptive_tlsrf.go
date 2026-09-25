@@ -196,9 +196,9 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 			certResult, certProbeErr := p.probeTLSCertificate(host, candidate, rule)
 			if certProbeErr == nil {
 				p.tracef("[CertProbe] host=%s addr=%s suspicious=%v reason=%s", host, candidate, certResult.suspicious, certResult.reason)
-				if certResult.Suspicious {
+				if certResult.suspicious {
 					if p.rules != nil {
-						_ = p.rules.markTLSRF(host, certResult.Reason)
+						_ = p.rules.markTLSRF(host, certResult.reason)
 					}
 					cachedTLSRF = true
 					break
