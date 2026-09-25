@@ -250,6 +250,23 @@ func portFromTargetAddr(targetAddr string) string {
 }
 
 func (p *ProxyServer) prepareConnect(targetHost, targetAddr string, rule Rule) *connectResult {
+	// Chinese mainland domains and literal mainland/private IP targets are
+	// always physical-direct under the automatic policy. This also disables
+	// the foreign TLS-RF fallback for those destinations.
+	if strings.EqualFold(strings.TrimSpace(rule.Transport), "auto") {
+		if isLikelyChinaMainlandDomain(targetHost) {
+			rule.Transport = "physical"
+			rule.Mode = "direct"
+			rule.FallbackMode = ""
+		} else if host := normalizeHost(targetAddr); isLiteralIP(host) {
+			if ip := net.ParseIP(strings.Trim(host, "[]")); isChinaMainlandIP(ip) || isPrivateOrLocalIP(ip) {
+				rule.Transport = "physical"
+				rule.Mode = "direct"
+				rule.FallbackMode = ""
+			}
+		}
+	}
+
 	effectiveMode := rule.Mode
 	if effectiveMode == "" {
 		effectiveMode = p.GetMode()
