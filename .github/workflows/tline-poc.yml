@@ -1,0 +1,52 @@
+name: T-Line SOCKS PoC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  poc:
+    name: CLI + SOCKS loopback PoC
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run SOCKS loopback integration test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          go test ./proxy -run 'TestTLineSOCKS5OutboundLoop|TestTLineSOCKS5DisabledUsesDirectDial' -count=1 -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Windows x64 CLI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./build_windows.ps1 -CI -Platform windows -Arch x64 -Type cli -Silent
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke test built CLI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bin = '.\build\bin\cli\Windows\x64\snishaper.exe'
+          if (-not (Test-Path $bin)) { Write-Host '::error::CLI binary missing'; exit 1 }
+          $version = (& $bin version).Trim()
+          Write-Host "::notice::Built CLI version: $version"
+          if (-not $version) { Write-Host '::error::CLI version is empty'; exit 1 }
+          & $bin help | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::CLI help failed'; exit 1 }
+
+      - name: Upload Windows x64 PoC binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: snishaper-tline-poc-windows-x64-${{ github.sha }}
+          if-no-files-found: error
+          path: build/bin/cli/Windows/x64/snishaper.exe
