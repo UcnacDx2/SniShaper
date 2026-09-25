@@ -786,7 +786,7 @@
       "upstream": "47.102.115.14",
       "nat64_enabled": false,
       "fallback_mode": "tls-rf",
-      "transport": "auto"
+      "transport": "tline"
     },
     {
       "id": "sg-1771319670672-50",
