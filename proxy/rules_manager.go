@@ -600,6 +600,7 @@ func (rm *RuleManager) buildRules() {
 				Domain:             domain,
 				Transport:          strings.ToLower(strings.TrimSpace(sg.Transport)),
 				Mode:               sg.Mode,
+				FallbackMode:        strings.ToLower(strings.TrimSpace(sg.FallbackMode)),
 				Upstream:           resolvedUpstream,
 				Upstreams:          resolvedUpstreams,
 				DNSMode:            normalizeDNSMode(sg.DNSMode),
