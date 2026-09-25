@@ -2,6 +2,7 @@ name: unit-test
 
 # Generates unit-test files for pure helpers (via .github/scripts/gen_tests)
 # and executes the Go unit-test suite. Keeps the repository continuously
+# CI trigger note: workflow definition was repaired on 2026-09-25.
 # covered without hand-writing every test.
 
 on:
