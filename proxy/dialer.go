@@ -395,16 +395,17 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 		return nil, fmt.Errorf("refusing to dial proxy's own listen address %s", addr)
 	}
 
-	// Transport is independent from Rule.Mode:
-	// physical -> bypass T-Line; tline -> force T-Line; auto/empty ->
-	// mainland/private direct and foreign through T-Line.
+	// Mainland/private destinations have hard physical-direct priority over
+	// the egress selector. This prevents an explicit "tline" rule from sending
+	// a mainland/private candidate through 127.0.0.1:10809.
 	transport := strings.ToLower(strings.TrimSpace(rule.Transport))
-	if transport == "" || transport == "auto" {
-		if p.isChinaMainlandDestination(ctx, addr) {
-			transport = "physical"
-		} else {
-			transport = "tline"
+	if p.isChinaMainlandDestination(ctx, addr) {
+		if transport != "physical" {
+			p.tracef("[AutoRoute] Mainland/private destination %s overrides transport=%s -> physical", addr, transport)
 		}
+		transport = "physical"
+	} else if transport == "" || transport == "auto" {
+		transport = "tline"
 	}
 
 	if transport != "physical" && tlineIsTCPNetwork(network) {
