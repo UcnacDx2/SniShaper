@@ -1,8 +1,8 @@
 package proxy
 
 import (
-	"strconv"
 	"bufio"
+	"strconv"
 	"context"
 	"fmt"
 	"io"
