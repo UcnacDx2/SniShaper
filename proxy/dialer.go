@@ -134,10 +134,16 @@ func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, d
 	if dnsMode == "system" {
 		ips, err := net.LookupIP(host)
 		if err == nil && len(ips) > 0 {
-			// Preserve the system resolver's ordering normally, but T-Line is
-			// IPv4-only, so its transport must not receive IPv6 candidates.
+			// T-Line transport is IPv4-only; filter system-resolver results
+			// without changing the normal resolver ordering otherwise.
 			if tlineSOCKS5Addr() != "" {
-				ips = orderIPsByDNSMode(ips, dnsMode)
+				v4 := make([]net.IP, 0, len(ips))
+				for _, ip := range ips {
+					if ip.To4() != nil {
+						v4 = append(v4, ip)
+					}
+				}
+				ips = v4
 			}
 			candidates := make([]string, 0, len(ips))
 			for _, ip := range ips {
