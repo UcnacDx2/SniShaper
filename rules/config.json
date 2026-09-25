@@ -2152,7 +2152,7 @@
       "id": "1775733151073116400",
       "name": "googlevideo",
       "mode": "mitm",
-      "dns_mode": "prefer_ipv6",
+      "dns_mode": "ipv4_only",
       "sni_fake": "g.cn",
       "domains": [
         "googlevideo.com"
