@@ -756,6 +756,29 @@
       "nat64_enabled": false
     },
     {
+      "id": "sg-1771319670672-48-main",
+      "name": "youtube-main",
+      "mode": "mitm",
+      "dns_mode": "prefer_ipv6",
+      "sni_fake": "g.cn",
+      "domains": [
+        "www.youtube.com",
+        "youtube.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {
+        "mode": "allow_names",
+        "names": [
+          "google.cn"
+        ]
+      },
+      "website": "google",
+      "enabled": true,
+      "nat64_enabled": false,
+      "transport": "tline"
+    },
+    {
       "id": "sg-1771319670672-48",
       "name": "youtube",
       "mode": "transparent",
@@ -769,7 +792,6 @@
         "usercontent.youtube.com",
         "youtu.be",
         "youtube-nocookie.com",
-        "youtube.com",
         "ytimg.com",
         "signaler-pa.clients6.google.com"
       ],
