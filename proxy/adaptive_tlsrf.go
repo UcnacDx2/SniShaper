@@ -12,12 +12,14 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"snishaper/pkg/tlsfrag"
 )
 
 const adaptiveTLSRFProbeTimeout = 8 * time.Second
+const adaptiveTLSRFCertProbeCacheTTL = 10 * time.Minute
 
 // Known public-root fingerprints used by TLS interception software.
 // These are treated as suspicious even when the host OS happens to trust them.
@@ -38,6 +40,29 @@ func isKnownTLSRFInterceptionRoot(cert *x509.Certificate) bool {
 type tlsCertificateProbeResult struct {
 	suspicious bool
 	reason     string
+}
+
+type tlsRFCertProbeCacheEntry struct {
+	checkedAt time.Time
+}
+
+var tlsRFCertProbeCache sync.Map // host -> tlsRFCertProbeCacheEntry
+
+func hasRecentTLSRFCertProbe(host string) bool {
+	value, ok := tlsRFCertProbeCache.Load(host)
+	if !ok {
+		return false
+	}
+	entry, ok := value.(tlsRFCertProbeCacheEntry)
+	if !ok || time.Since(entry.checkedAt) >= adaptiveTLSRFCertProbeCacheTTL {
+		tlsRFCertProbeCache.Delete(host)
+		return false
+	}
+	return true
+}
+
+func rememberTLSRFCertProbe(host string) {
+	tlsRFCertProbeCache.Store(host, tlsRFCertProbeCacheEntry{checkedAt: time.Now()})
 }
 
 func (p *ProxyServer) probeTLSCertificate(host, candidate string, rule Rule) (tlsCertificateProbeResult, error) {
@@ -68,8 +93,8 @@ func (p *ProxyServer) probeTLSCertificate(host, candidate string, rule Rule) (tl
 	if err != nil {
 		return tlsCertificateProbeResult{}, fmt.Errorf("public CA pool unavailable: %w", err)
 	}
-	if roots == nil {
-		return tlsCertificateProbeResult{}, errors.New("public CA pool unavailable")
+	if roots == nil || len(roots.Subjects()) == 0 {
+		return tlsCertificateProbeResult{}, errors.New("public CA pool unavailable or empty")
 	}
 
 	intermediates := x509.NewCertPool()
@@ -187,21 +212,26 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 	// and go straight to the fragmented handshake (subject to mainland-IP
 	// override below).
 	cachedTLSRF := p.rules != nil && p.rules.isTLSRFCached(host)
+	trustedCertRecently := hasRecentTLSRFCertProbe(host)
 	if !cachedTLSRF {
 		for _, candidate := range candidates {
 		if !cachedTLSRF {
 			if strings.EqualFold(rule.Transport, "auto") && p.isChinaMainlandDestination(context.Background(), candidate) {
 				continue
 			}
-			certResult, certProbeErr := p.probeTLSCertificate(host, candidate, rule)
-			if certProbeErr == nil {
-				p.tracef("[CertProbe] host=%s addr=%s suspicious=%v reason=%s", host, candidate, certResult.suspicious, certResult.reason)
-				if certResult.suspicious {
-					if p.rules != nil {
-						_ = p.rules.markTLSRF(host, certResult.reason)
+			if !trustedCertRecently {
+				certResult, certProbeErr := p.probeTLSCertificate(host, candidate, rule)
+				if certProbeErr == nil {
+					p.tracef("[CertProbe] host=%s addr=%s suspicious=%v reason=%s", host, candidate, certResult.suspicious, certResult.reason)
+					if certResult.suspicious {
+						if p.rules != nil {
+							_ = p.rules.markTLSRF(host, certResult.reason)
+						}
+						cachedTLSRF = true
+						break
 					}
-					cachedTLSRF = true
-					break
+					rememberTLSRFCertProbe(host)
+					trustedCertRecently = true
 				}
 			}
 		}
