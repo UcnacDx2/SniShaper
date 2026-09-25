@@ -396,10 +396,10 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 	}
 
 	// Transport is independent from Rule.Mode:
-	// physical -> bypass T-Line; tline -> force T-Line; auto ->
-	// mainland/private direct and foreign through T-Line; empty -> legacy.
+	// physical -> bypass T-Line; tline -> force T-Line; auto/empty ->
+	// mainland/private direct and foreign through T-Line.
 	transport := strings.ToLower(strings.TrimSpace(rule.Transport))
-	if transport == "auto" {
+	if transport == "" || transport == "auto" {
 		if p.isChinaMainlandDestination(ctx, addr) {
 			transport = "physical"
 		} else {
