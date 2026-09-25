@@ -65,6 +65,12 @@ func orderIPsByDNSMode(ips []string, dnsMode string) []string {
 		}
 	}
 
+	// T-Line transport is IPv4-only: keep DNS candidate selection IPv4-only
+	// without changing SniShaper's normal DNS behavior when T-Line is disabled.
+	if tlineSOCKS5Addr() != "" {
+		return v4
+	}
+
 	switch dnsMode {
 	case "ipv4_only":
 		return v4
