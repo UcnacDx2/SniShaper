@@ -175,6 +175,19 @@ func TestTLineSOCKS5OutboundLoop(t *testing.T) {
 	}
 }
 
+func TestTLineTransportFailsClosedWithoutSOCKS5(t *testing.T) {
+	t.Setenv(tlineSOCKS5Env, "")
+
+	p := NewProxyServer("127.0.0.1:1")
+	_, err := p.dialWithRule(context.Background(), "tcp", "203.0.113.10:443", Rule{Transport: "tline", Mode: "tls-rf"})
+	if err == nil {
+		t.Fatal("T-Line transport unexpectedly fell back to physical direct dial")
+	}
+	if !strings.Contains(err.Error(), tlineSOCKS5Env) {
+		t.Fatalf("unexpected fail-closed error: %v", err)
+	}
+}
+
 func TestTLineSOCKS5DisabledUsesDirectDial(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(tlineSOCKS5Env)) != "" {
 		t.Skip("environment already enables T-Line SOCKS5")
