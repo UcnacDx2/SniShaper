@@ -203,7 +203,10 @@ func (p *ProxyServer) prepareConnect(targetHost, targetAddr string, rule Rule) *
 }
 
 func (p *ProxyServer) dialUpstream(cr *connectResult) error {
-	if cr.rule.UseCFPool && p.CFPoolUsable() {
+	// When T-Line SOCKS5 is configured, keep normal SniShaper candidate/rule
+	// selection but force the actual TCP upstream socket through T-Line.
+	tlineSocks5 := tlineSOCKS5Addr()
+	if tlineSocks5 == "" && cr.rule.UseCFPool && p.CFPoolUsable() {
 		_, port, _ := net.SplitHostPort(cr.targetAddr)
 		if port == "" {
 			port = "443"
@@ -302,6 +305,13 @@ func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, rule Rule) (net.Conn, error) {
 	if p.isSelfTarget(addr) {
 		return nil, fmt.Errorf("refusing to dial proxy's own listen address %s", addr)
+	}
+
+	// PoC outbound chain: SniShaper remains the ingress/processing layer,
+	// while T-Line becomes the TCP upstream transport when configured.
+	if tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && isTCPNetwork(network) {
+		p.tracef("[T-Line] dialing %s via SOCKS5 %s", addr, tlineSocks5)
+		return dialViaSOCKS5(ctx, tlineSocks5, addr)
 	}
 	if rule.NAT64Enabled && rule.NAT64ProfileID != "" {
 		prefix := p.rules.GetNAT64PrefixByID(rule.NAT64ProfileID)
