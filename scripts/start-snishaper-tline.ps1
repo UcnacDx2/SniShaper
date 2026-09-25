@@ -31,17 +31,28 @@ if (-not $ready) {
 $env:SNISHAPER_TLINE_SOCKS5 = $hostName + ':' + $port
 Write-Host ("[2/4] SNISHAPER_TLINE_SOCKS5=" + $env:SNISHAPER_TLINE_SOCKS5) -ForegroundColor Green
 
-Write-Host "[3/4] Starting SniShaper service..." -ForegroundColor Cyan
+Write-Host "[3/4] Ensuring SniShaper service inherits the T-Line setting..." -ForegroundColor Cyan
+$status = (& $exe status 2>$null | Out-String)
+if ($status -match "服务:\s*运行中") {
+    Write-Host "       Existing service detected; stopping it first..." -ForegroundColor Yellow
+    & $exe stop
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ("[ERROR] snishaper.exe stop failed (exit " + $LASTEXITCODE + ").") -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+    Start-Sleep -Milliseconds 800
+}
+
 & $exe start
 if ($LASTEXITCODE -ne 0) {
-    Write-Host ("[ERROR] 'snishaper.exe start' failed (exit " + $LASTEXITCODE + ").") -ForegroundColor Red
+    Write-Host ("[ERROR] snishaper.exe start failed (exit " + $LASTEXITCODE + ").") -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
 Write-Host "[4/4] Enabling SniShaper proxy (proxy on)..." -ForegroundColor Cyan
 & $exe proxy on
 if ($LASTEXITCODE -ne 0) {
-    Write-Host ("[ERROR] 'snishaper.exe proxy on' failed (exit " + $LASTEXITCODE + ").") -ForegroundColor Red
+    Write-Host ("[ERROR] snishaper.exe proxy on failed (exit " + $LASTEXITCODE + ").") -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
