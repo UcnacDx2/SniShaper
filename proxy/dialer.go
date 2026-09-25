@@ -378,10 +378,20 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 		return nil, fmt.Errorf("refusing to dial proxy's own listen address %s", addr)
 	}
 
-	// PoC outbound chain: SniShaper remains the ingress/processing layer,
-	// while T-Line becomes the TCP upstream transport when configured.
-	if tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && tlineIsTCPNetwork(network) {
-		p.tracef("[T-Line] dialing %s via SOCKS5 %s", addr, tlineSocks5)
+	// Transport is independent from Rule.Mode:
+	// physical -> bypass T-Line; tline -> force T-Line; auto ->
+	// mainland/private direct and foreign through T-Line; empty -> legacy.
+	transport := strings.ToLower(strings.TrimSpace(rule.Transport))
+	if transport == "auto" {
+		if p.isChinaMainlandDestination(ctx, addr) {
+			transport = "physical"
+		} else {
+			transport = "tline"
+		}
+	}
+
+	if transport != "physical" && tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && tlineIsTCPNetwork(network) {
+		p.tracef("[T-Line] dialing %s via SOCKS5 %s (transport=%s)", addr, tlineSocks5, transport)
 		return tlineDialViaSOCKS5(ctx, tlineSocks5, addr)
 	}
 	if rule.NAT64Enabled && rule.NAT64ProfileID != "" {
@@ -432,6 +442,36 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 type dohResolveCtxKeyType int
 
 const dohResolveCtxKey dohResolveCtxKeyType = 0
+
+func (p *ProxyServer) isChinaMainlandDestination(ctx context.Context, addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = strings.Trim(addr, "[]")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return isChinaMainlandIP(ip) || isPrivateOrLocalIP(ip)
+	}
+	if isLikelyChinaMainlandDomain(host) {
+		return true
+	}
+	// Only resolve a hostname here when a caller did not already resolve it.
+	// dohResolveCtxKey prevents recursion when the DoH resolver itself uses
+	// dialWithRule.
+	if ctx.Value(dohResolveCtxKey) == nil && p.dohResolver != nil {
+		resolveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		ips, err := p.dohResolver.ResolveIPs(resolveCtx, host)
+		if err == nil {
+			for _, ipStr := range ips {
+				if ip := net.ParseIP(ipStr); ip != nil &&
+					(isChinaMainlandIP(ip) || isPrivateOrLocalIP(ip)) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
 // getPhysicalLocalAddr 根据目标地址的 IP 族选择对应的物理网卡本地地址
 // IPv4 目标 → 返回 IPv4 地址，IPv6 目标 → 返回 IPv6 地址
