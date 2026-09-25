@@ -179,8 +179,11 @@ jobs:
           }
           Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
 
-          # Bundle the repository rules with every CLI target so runtime rule loading
-          # does not fall back to an empty config.
+          $rulesSrc = Join-Path $env:GITHUB_WORKSPACE 'rules'
+          if (-not (Test-Path (Join-Path $rulesSrc 'config.json'))) {
+            Write-Host '::error::repository rules/config.json is missing'
+            exit 1
+          }
           $cliDirs = @(
             'build/bin/cli/Windows/x64',
             'build/bin/cli/Windows/x86',
@@ -189,7 +192,9 @@ jobs:
             'build/bin/cli/Linux/arm64'
           )
           foreach ($dir in $cliDirs) {
-            Copy-Item -Recurse -Force 'rules' (Join-Path $dir 'rules')
+            $rulesDst = Join-Path $dir 'rules'
+            New-Item -ItemType Directory -Force -Path $rulesDst | Out-Null
+            Copy-Item -Path (Join-Path $rulesSrc '*') -Destination $rulesDst -Recurse -Force
           }
 
       - name: Verify five targets and bundled rules
