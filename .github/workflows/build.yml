@@ -154,11 +154,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          go test ./proxy -run 'Test(ChinaMainlandIPClassification|LikelyChinaDomain|DefaultRoutePolicy|PrepareConnectMainlandPolicy|AutoDestinationLiteralIP|PersistentTLSRFCacheRoundTrip|TLSRFCacheOnlyExplicitTLSAlert)$' -count=1 -v
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: SOCKS loopback integration test
-        shell: pwsh
+          go test ./proxy -run 'Test(ChinaMainlandIPClassification|LikelyChinaDomain|DefaultRoutePolicy|PrepareConnectMainlandPolicy|AutoDestinationLiteralIP|PersistentTLSRFCacheRoundTrip|TLSRFCacheOnlyExplicitTLSAlert)        shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           go test ./proxy -run 'TestTLineSOCKS5OutboundLoop|TestTLineSOCKS5DisabledUsesDirectDial' -count=1 -v
