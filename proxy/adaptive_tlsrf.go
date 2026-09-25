@@ -134,7 +134,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 		p.tracef("[TLS-RF] Adaptive retry succeeded host=%s addr=%s", host, candidate)
 		p.directTunnel(clientConn, &bufferedReadConn{
 			Conn:   conn,
-			reader: bytes.NewReader(response),
+			reader: io.MultiReader(bytes.NewReader(response), conn),
 		})
 		return
 	}
