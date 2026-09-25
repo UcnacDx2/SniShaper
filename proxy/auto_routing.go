@@ -168,6 +168,7 @@ func (ar *AutoRouter) Decide(host string) Rule {
 	// Domain is in GFWList — check if Cloudflare
 	if ar.IsCloudflare(host) {
 		return Rule{
+			Transport:          "tline",
 			Mode:               "mitm",
 			ECHEnabled:         true,
 			ECHProfileID:       "legacy-cloudflare",
@@ -181,6 +182,7 @@ func (ar *AutoRouter) Decide(host string) Rule {
 
 	// Non-CF blocked domain → TLS-RF, optionally with fallback
 	rule := Rule{
+		Transport:  "tline",
 		Mode:       "tls-rf",
 		Enabled:    true,
 		AutoRouted: true,

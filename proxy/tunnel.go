@@ -104,6 +104,35 @@ func (p *ProxyServer) handleConnect(w http.ResponseWriter, req *http.Request, ru
 		return
 	}
 
+	// Default foreign CONNECT traffic is adaptive: buffer ClientHello first,
+	// probe the ordinary route, then retry it with TLS-RF when the TLS handshake
+	// path fails. We cannot do this after dialUpstream(), because TCP success is
+	// not equivalent to a successful TLS handshake.
+	if cr.effectiveMode == "transparent" && strings.EqualFold(cr.rule.FallbackMode, "tls-rf") && portFromTargetAddr(cr.targetAddr) == "443" {
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "Hijack not supported", http.StatusInternalServerError)
+			return
+		}
+		clientConn, rw, err := hijacker.Hijack()
+		if err != nil {
+			log.Printf("[Connect] Adaptive TLS-RF hijack failed: %v", err)
+			return
+		}
+		if _, err := rw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+			clientConn.Close()
+			return
+		}
+		if err := rw.Flush(); err != nil {
+			clientConn.Close()
+			return
+		}
+		clientConn = wrapHijackedConn(clientConn, rw)
+		_ = clientConn.SetDeadline(time.Time{})
+		p.handleAdaptiveTLSRF(clientConn, cr.targetHost, cr.targetAddr, cr.rule)
+		return
+	}
+
 	if err := p.dialUpstream(cr); err != nil {
 		http.Error(w, "Failed to connect to upstream", http.StatusBadGateway)
 		p.tracef("[Connect] All upstream connect attempts failed: %v, error: %v", cr.dialCandidates, err)
@@ -375,7 +404,7 @@ func (p *ProxyServer) handleHTTP(w http.ResponseWriter, req *http.Request, rule 
 		}
 		targetAddr := ensureAddrWithPort(newReq.URL.Host, defaultPort)
 		dialCandidates := p.buildDialCandidates(req.Context(), normalizeHost(newReq.Host), targetAddr, rule, rule.Mode)
-		if len(dialCandidates) > 0 && dialCandidates[0] != targetAddr {
+		if len(dialCandidates) > 0 && (dialCandidates[0] != targetAddr || strings.TrimSpace(rule.Transport) != "") {
 			t := p.transport.Clone()
 			candidateSet := dedupeDialCandidates(dialCandidates)
 			t.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
