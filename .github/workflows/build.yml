@@ -1,4 +1,5 @@
 name: build
+# CI artifact probe for T-Line PoC build verification
 
 on:
   push:
