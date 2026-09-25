@@ -108,7 +108,7 @@ func (p *ProxyServer) handleConnect(w http.ResponseWriter, req *http.Request, ru
 	// probe the ordinary route, then retry it with TLS-RF when the TLS handshake
 	// path fails. We cannot do this after dialUpstream(), because TCP success is
 	// not equivalent to a successful TLS handshake.
-	if cr.effectiveMode == "transparent" && strings.EqualFold(cr.rule.FallbackMode, "tls-rf") {
+	if cr.effectiveMode == "transparent" && strings.EqualFold(cr.rule.FallbackMode, "tls-rf") && portFromTargetAddr(cr.targetAddr) == "443" {
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
 			http.Error(w, "Hijack not supported", http.StatusInternalServerError)
