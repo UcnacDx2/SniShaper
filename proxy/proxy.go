@@ -125,6 +125,9 @@ type NAT64Profile struct {
 
 type Rule struct {
 	Domain             string           `json:"domain"`
+	// Transport controls the physical egress independently from protocol processing.
+	// "physical" bypasses T-Line, "tline" forces T-Line, "auto" selects mainland/private direct or foreign T-Line.
+	Transport          string           `json:"transport,omitempty"`
 	Upstream           string           `json:"upstream,omitempty"`
 	Upstreams          []string         `json:"upstreams,omitempty"`
 	DNSMode            string           `json:"dns_mode,omitempty"`
@@ -151,6 +154,8 @@ type SiteGroup struct {
 	ID                 string           `json:"id"`
 	Name               string           `json:"name"`
 	Mode               string           `json:"mode"`
+	// Transport overrides the site group egress strategy when non-empty.
+	Transport          string           `json:"transport,omitempty"`
 	DNSMode            string           `json:"dns_mode,omitempty"`
 	SniFake            string           `json:"sni_fake,omitempty"`
 	ConnectPolicy      string           `json:"connect_policy,omitempty"`
