@@ -77,6 +77,20 @@ func orderIPsByDNSMode(ips []string, dnsMode string) []string {
 	}
 }
 
+func filterTLineDNSIPv6(ips []string) []string {
+	if tlineSOCKS5Addr() == "" {
+		return ips
+	}
+	v4 := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		parsed := net.ParseIP(ip)
+		if parsed != nil && parsed.To4() != nil {
+			v4 = append(v4, ip)
+		}
+	}
+	return v4
+}
+
 func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, dnsMode string) []string {
 	if isLiteralIP(host) {
 		return []string{net.JoinHostPort(host, port)}
@@ -85,6 +99,7 @@ func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, d
 	if dnsMode == "system" {
 		ips, err := net.LookupIP(host)
 		if err == nil && len(ips) > 0 {
+			ips = filterTLineDNSIPv6(ips)
 			candidates := make([]string, 0, len(ips))
 			for _, ip := range ips {
 				candidates = append(candidates, net.JoinHostPort(ip.String(), port))
@@ -97,6 +112,7 @@ func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, d
 	if p.dohResolver != nil {
 		ips, err := p.dohResolver.ResolveIPs(ctx, host)
 		if err == nil && len(ips) > 0 {
+			ips = filterTLineDNSIPv6(ips)
 			// 按 dns_mode 排序/过滤 v4/v6（prefer_ipv6 / ipv6_only / ipv4_only 等），
 			// 避免 prefer_ipv6 规则仍以 IPv4 优先导致拨号失败。
 			ordered := orderIPsByDNSMode(ips, dnsMode)
@@ -202,27 +218,6 @@ func (p *ProxyServer) prepareConnect(targetHost, targetAddr string, rule Rule) *
 	}
 }
 
-func (p *ProxyServer) filterTLineDialCandidates(candidates []string) []string {
-	if tlineSOCKS5Addr() == "" {
-		return candidates
-	}
-
-	filtered := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		host, _, err := net.SplitHostPort(candidate)
-		if err != nil {
-			filtered = append(filtered, candidate)
-			continue
-		}
-		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
-			p.tracef("[T-Line] skipping IPv6 candidate %s: SOCKS5 transport is currently IPv4-only", candidate)
-			continue
-		}
-		filtered = append(filtered, candidate)
-	}
-	return filtered
-}
-
 func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 	// When T-Line SOCKS5 is configured, keep normal SniShaper candidate/rule
 	// selection but force the actual TCP upstream socket through T-Line.
@@ -251,9 +246,6 @@ func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 	}
 
 	dialCandidates := p.buildDialCandidates(context.Background(), cr.targetHost, cr.targetAddr, cr.rule, cr.effectiveMode)
-	// The current T-Line SOCKS5 endpoint rejects IPv6 CONNECTs, so remove IPv6
-	// candidates before the initial dial and before handing candidates to MITM.
-	dialCandidates = p.filterTLineDialCandidates(dialCandidates)
 	if len(dialCandidates) == 0 {
 		dialCandidates = []string{cr.targetAddr}
 	}
