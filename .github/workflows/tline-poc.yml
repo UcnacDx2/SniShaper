@@ -29,8 +29,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          ./build_windows.ps1 -CI -Platform windows -Arch x64 -Type cli -Silent
+          $env:CGO_ENABLED = '0'
+          New-Item -ItemType Directory -Force -Path 'build/bin/cli/Windows/x64' | Out-Null
+          go build -tags "with_gvisor headless" -trimpath -o 'build/bin/cli/Windows/x64/snishaper.exe' ./cli
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
 
       - name: Smoke test built CLI
         shell: pwsh
