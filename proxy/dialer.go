@@ -479,6 +479,11 @@ func (p *ProxyServer) isChinaMainlandDestination(ctx context.Context, addr strin
 	if ctx.Value(dohResolveCtxKey) == nil && p.dohResolver != nil {
 		resolveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
+		// Mark this entire DoH resolution chain as recursion-guarded. The
+		// DoH resolver may itself call back into DialWithRule for a DNS node
+		// whose endpoint is a hostname; that nested dial must not resolve the
+		// hostname again through the same DoH resolver.
+		resolveCtx = context.WithValue(resolveCtx, dohResolveCtxKey, true)
 		ips, err := p.dohResolver.ResolveIPs(resolveCtx, host)
 		if err == nil {
 			for _, ipStr := range ips {
