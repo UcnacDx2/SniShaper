@@ -309,9 +309,9 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 
 	// PoC outbound chain: SniShaper remains the ingress/processing layer,
 	// while T-Line becomes the TCP upstream transport when configured.
-	if tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && isTCPNetwork(network) {
+	if tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && tlineIsTCPNetwork(network) {
 		p.tracef("[T-Line] dialing %s via SOCKS5 %s", addr, tlineSocks5)
-		return dialViaSOCKS5(ctx, tlineSocks5, addr)
+		return tlineDialViaSOCKS5(ctx, tlineSocks5, addr)
 	}
 	if rule.NAT64Enabled && rule.NAT64ProfileID != "" {
 		prefix := p.rules.GetNAT64PrefixByID(rule.NAT64ProfileID)
