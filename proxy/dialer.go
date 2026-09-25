@@ -84,6 +84,7 @@ func mapNAT64IPv6ToIPv4(ipStr string, prefix string) (string, bool) {
 		return ipStr, false
 	}
 	return net.IP(parsedIP[12:16]).To4().String(), true
+}
 
 // orderIPsByDNSMode 按 dns_mode 对解析出的 IP 列表排序/过滤地址族：
 //
