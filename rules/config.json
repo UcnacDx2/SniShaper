@@ -3774,6 +3774,36 @@
       "website": "spotify",
       "enabled": true,
       "nat64_enabled": false
+    },
+    {
+      "id": "sg-netflix-tlsrf",
+      "name": "netflix",
+      "mode": "tls-rf",
+      "domains": [
+        "netflix.com",
+        "*.netflix.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {},
+      "website": "netflix",
+      "enabled": true,
+      "nat64_enabled": false
+    },
+    {
+      "id": "sg-tiktok-tlsrf",
+      "name": "tiktok",
+      "mode": "tls-rf",
+      "domains": [
+        "tiktok.com",
+        "*.tiktok.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {},
+      "website": "tiktok",
+      "enabled": true,
+      "nat64_enabled": false
     }
   ],
   "upstreams": [],
