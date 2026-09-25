@@ -672,6 +672,8 @@ jobs:
             }
             Copy-Item (Join-Path $launcherSrc 'start-snishaper-tline.ps1') $dir -Force
             Copy-Item (Join-Path $launcherSrc 'start-snishaper-tline.cmd') $dir -Force
+            Copy-Item (Join-Path $launcherSrc 'stop-snishaper-tline.ps1') $dir -Force
+            Copy-Item (Join-Path $launcherSrc 'stop-snishaper-tline.cmd') $dir -Force
             Copy-Item (Join-Path $launcherSrc 'TLINE-10809-README.txt') $dir -Force
           }
 

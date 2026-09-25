@@ -136,7 +136,7 @@ func TestTLineSOCKS5OutboundLoop(t *testing.T) {
 	t.Setenv(tlineSOCKS5Env, socksLn.Addr().String())
 
 	p := NewProxyServer("127.0.0.1:0")
-	conn, err := p.dialWithRule(context.Background(), "tcp", targetAddr, Rule{Mode: "tls-rf"})
+	conn, err := p.dialWithRule(context.Background(), "tcp", targetAddr, Rule{Mode: "tls-rf", Transport: "tline"})
 	if err != nil {
 		t.Fatalf("SniShaper -> T-Line SOCKS5 dial failed: %v", err)
 	}
