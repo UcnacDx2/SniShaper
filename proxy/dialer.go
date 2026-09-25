@@ -77,20 +77,6 @@ func orderIPsByDNSMode(ips []string, dnsMode string) []string {
 	}
 }
 
-func filterTLineDNSIPv6(ips []string) []string {
-	if tlineSOCKS5Addr() == "" {
-		return ips
-	}
-	v4 := make([]string, 0, len(ips))
-	for _, ip := range ips {
-		parsed := net.ParseIP(ip)
-		if parsed != nil && parsed.To4() != nil {
-			v4 = append(v4, ip)
-		}
-	}
-	return v4
-}
-
 func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, dnsMode string) []string {
 	if isLiteralIP(host) {
 		return []string{net.JoinHostPort(host, port)}
@@ -99,7 +85,6 @@ func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, d
 	if dnsMode == "system" {
 		ips, err := net.LookupIP(host)
 		if err == nil && len(ips) > 0 {
-			ips = filterTLineDNSIPv6(ips)
 			candidates := make([]string, 0, len(ips))
 			for _, ip := range ips {
 				candidates = append(candidates, net.JoinHostPort(ip.String(), port))
@@ -112,8 +97,7 @@ func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, d
 	if p.dohResolver != nil {
 		ips, err := p.dohResolver.ResolveIPs(ctx, host)
 		if err == nil && len(ips) > 0 {
-			ips = filterTLineDNSIPv6(ips)
-			// 按 dns_mode 排序/过滤 v4/v6（prefer_ipv6 / ipv6_only / ipv4_only 等），
+				// 按 dns_mode 排序/过滤 v4/v6（prefer_ipv6 / ipv6_only / ipv4_only 等），
 			// 避免 prefer_ipv6 规则仍以 IPv4 优先导致拨号失败。
 			ordered := orderIPsByDNSMode(ips, dnsMode)
 			candidates := make([]string, 0, len(ordered))
