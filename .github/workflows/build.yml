@@ -184,7 +184,7 @@ jobs:
           & .\build\bin\cli\Windows\x64\snishaper.exe help | Out-Null
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::CLI help failed"; exit 1 }
       - name: Upload CLI binaries
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: snishaper-cli-${{ github.sha }}
           if-no-files-found: error
@@ -196,7 +196,7 @@ jobs:
             build/bin/cli/Linux/arm64/snishaper
 
       - name: Upload Windows x64 CLI
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: snishaper-cli-windows-x64-${{ github.sha }}
           if-no-files-found: error
@@ -252,7 +252,7 @@ jobs:
           if [ -z "$V" ]; then echo "::error::empty CLI version"; exit 1; fi
           "$BIN" help >/dev/null
       - name: Upload Darwin CLI
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: snishaper-cli-darwin-${{ matrix.arch }}-${{ github.sha }}
           if-no-files-found: error
