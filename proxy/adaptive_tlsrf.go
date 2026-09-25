@@ -84,8 +84,8 @@ func (p *ProxyServer) probeTLSCertificate(host, candidate string, rule Rule) (tl
 	})
 	if err != nil {
 		return tlsCertificateProbeResult{
-			Suspicious: true,
-			Reason:     "public CA/hostname verification failed: " + err.Error(),
+			suspicious: true,
+			reason:     "public CA/hostname verification failed: " + err.Error(),
 		}, nil
 	}
 
