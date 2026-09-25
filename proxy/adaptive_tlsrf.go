@@ -25,6 +25,16 @@ var knownTLSRFInterceptionRootFingerprints = map[string]struct{}{
 	"596bea0e9186bb94279f8dffa5fa6c4904d7d59137ad3b644b76b69ce85226d3": {},
 }
 
+func isKnownTLSRFInterceptionRoot(cert *x509.Certificate) bool {
+	if cert == nil {
+		return false
+	}
+	sum := sha256.Sum256(cert.Raw)
+	fingerprint := hex.EncodeToString(sum[:])
+	_, ok := knownTLSRFInterceptionRootFingerprints[fingerprint]
+	return ok
+}
+
 type tlsCertificateProbeResult struct {
 	suspicious bool
 	reason     string
@@ -55,8 +65,11 @@ func (p *ProxyServer) probeTLSCertificate(host, candidate string, rule Rule) (tl
 	}
 
 	roots, err := x509.SystemCertPool()
-	if err != nil || roots == nil {
+	if err != nil {
 		return tlsCertificateProbeResult{}, fmt.Errorf("public CA pool unavailable: %w", err)
+	}
+	if roots == nil {
+		return tlsCertificateProbeResult{}, errors.New("public CA pool unavailable")
 	}
 
 	intermediates := x509.NewCertPool()
@@ -90,12 +103,10 @@ func (p *ProxyServer) probeTLSCertificate(host, candidate string, rule Rule) (tl
 			continue
 		}
 		root := chain[len(chain)-1]
-		sum := sha256.Sum256(root.Raw)
-		fingerprint := hex.EncodeToString(sum[:])
-		if _, ok := knownTLSRFInterceptionRootFingerprints[fingerprint]; ok {
+		if isKnownTLSRFInterceptionRoot(root) {
 			return tlsCertificateProbeResult{
-				Suspicious: true,
-				Reason:     "known TLS interception root: " + root.Subject.String(),
+				suspicious: true,
+				reason:     "known TLS interception root: " + root.Subject.String(),
 			}, nil
 		}
 	}
