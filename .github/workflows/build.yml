@@ -200,7 +200,7 @@ jobs:
             Copy-Item -Path (Join-Path $rulesSrc '*') -Destination $rulesDst -Recurse -Force
           }
 
-      - name: Verify five targets and bundled rules
+      - name: Verify six targets and bundled rules
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -209,6 +209,7 @@ jobs:
             'build\bin\cli\Windows\x86\snishaper.exe',
             'build\bin\cli\Windows\arm64\snishaper.exe',
             'build\bin\cli\Linux\x64\snishaper',
+            'build\bin\cli\Linux\arm\snishaper',
             'build\bin\cli\Linux\arm64\snishaper'
           )
           foreach ($f in $expected) {
