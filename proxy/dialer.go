@@ -74,7 +74,9 @@ func mapNAT64IPv6ToIPv4(ipStr string, prefix string) (string, bool) {
 		prefixBits, _ = ipnet.Mask.Size()
 	} else {
 		prefixIP = net.ParseIP(prefix)
-		prefixBits = 128
+		// SniShaper's configured NAT64 prefixes are /96 and are stored
+		// without the CIDR suffix, so treat a bare IPv6 prefix as /96.
+		prefixBits = 96
 	}
 	if prefixIP == nil || prefixBits != 96 {
 		return ipStr, false
