@@ -24,7 +24,7 @@
       "id": "sg-1771319670672-6",
       "name": "api.bbc.co.uk",
       "mode": "tls-rf",
-      "dns_mode": "ipv4_only",
+      "dns_mode": "prefer_ipv4",
       "domains": [
         "api.bbc.co.uk",
         "api.bbci.co.uk",
@@ -759,7 +759,7 @@
       "id": "sg-1771319670672-48",
       "name": "youtube",
       "mode": "mitm",
-      "dns_mode": "ipv4_only",
+      "dns_mode": "prefer_ipv6",
       "sni_fake": "g.cn",
       "domains": [
         "gdata.youtube.com",
@@ -2073,7 +2073,7 @@
       "id": "1774951766458996400",
       "name": "ichef",
       "mode": "tls-rf",
-      "dns_mode": "ipv4_only",
+      "dns_mode": "prefer_ipv4",
       "domains": [
         "ichef.bbci.co.uk"
       ],
@@ -2152,7 +2152,7 @@
       "id": "1775733151073116400",
       "name": "googlevideo",
       "mode": "mitm",
-      "dns_mode": "ipv4_only",
+      "dns_mode": "prefer_ipv6",
       "sni_fake": "g.cn",
       "domains": [
         "googlevideo.com"
@@ -3346,7 +3346,7 @@
       "id": "1781678643318094200",
       "name": "blog",
       "mode": "tls-rf",
-      "dns_mode": "ipv4_only",
+      "dns_mode": "prefer_ipv6",
       "domains": [
         "blog.google"
       ],
@@ -3425,7 +3425,7 @@
       "id": "1783434202924217200",
       "name": "yastatic",
       "mode": "transparent",
-      "dns_mode": "ipv4_only",
+      "dns_mode": "prefer_ipv6",
       "domains": [
         "yastatic.net"
       ],
