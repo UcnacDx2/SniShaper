@@ -783,7 +783,6 @@
       },
       "website": "google",
       "enabled": true,
-      "upstream": "47.102.115.14",
       "nat64_enabled": false,
       "fallback_mode": "tls-rf",
       "transport": "tline"
