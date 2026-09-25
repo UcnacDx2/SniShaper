@@ -172,7 +172,16 @@ func (p *ProxyServer) handleConnect(w http.ResponseWriter, req *http.Request, ru
 	case "mitm":
 		p.handleMITM(clientConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
 	case "tls-rf":
-		p.handleTLSFragment(clientConn, cr.conn, cr.targetHost, cr.rule)
+		// The automatic transport policy is IP-authoritative: if the selected
+		// candidate is a mainland/private IP, never apply TLS-RF even when the
+		// host has a persisted TLS-RF learning entry.
+		if strings.EqualFold(strings.TrimSpace(cr.rule.Transport), "auto") &&
+			p.isChinaMainlandDestination(context.Background(), cr.dialAddr) {
+			p.tracef("[AutoRoute] Cached TLS-RF overridden by mainland candidate %s -> physical direct", cr.dialAddr)
+			p.handleTransparent(clientConn, cr.conn, cr.targetHost, cr.rule)
+		} else {
+			p.handleTLSFragment(clientConn, cr.conn, cr.targetHost, cr.rule)
+		}
 	default:
 		p.handleTransparent(clientConn, cr.conn, cr.targetHost, cr.rule)
 	}
