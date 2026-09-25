@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"snishaper/pkg/dohresolver"
 )
@@ -44,6 +45,11 @@ type RuleManager struct {
 	updateChannel              string
 	downloadSource             string
 	customDownloadSource       string
+
+	// tlsRFCache remembers domains whose ordinary HTTPS path returned an
+	// explicit TLS handshake alert, so subsequent launches can use TLS-RF
+	// immediately instead of probing the known-blocked path again.
+	tlsRFCache map[string]TLSRFCacheEntry
 }
 
 func (r *RuleManager) SetRouteEventCallback(cb func(domain, mode string)) {
@@ -91,8 +97,128 @@ type RulesConfig struct {
 	NAT64Profiles []NAT64Profile `json:"nat64_profiles,omitempty"`
 }
 
+// TLSRFCacheEntry is persisted indefinitely until the user clears the cache.
+type TLSRFCacheEntry struct {
+	CachedAt time.Time `json:"cached_at"`
+	Reason   string    `json:"reason,omitempty"`
+}
+
+type TLSRFCacheConfig struct {
+	Version int                            `json:"version"`
+	Entries map[string]TLSRFCacheEntry     `json:"entries"`
+}
+
+func tlsRFCachePath(rulesPath string) string {
+	if strings.TrimSpace(rulesPath) == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(rulesPath), "tlsrf_cache.json")
+}
+
 // DNSNode defines a DoH upstream with optional SNI obfuscation.
 // It reuses the same dial-level concepts as proxy rules (SNI spoofing, ECH, QUIC, static IPs).
+func (rm *RuleManager) loadTLSRFCache() error {
+	path := tlsRFCachePath(rm.rulesPath)
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			rm.mu.Lock()
+			rm.tlsRFCache = make(map[string]TLSRFCacheEntry)
+			rm.mu.Unlock()
+			return nil
+		}
+		return err
+	}
+	var cfg TLSRFCacheConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	entries := make(map[string]TLSRFCacheEntry, len(cfg.Entries))
+	for host, entry := range cfg.Entries {
+		host = normalizeHost(host)
+		if host == "" {
+			continue
+		}
+		entries[host] = entry
+	}
+	rm.mu.Lock()
+	rm.tlsRFCache = entries
+	rm.mu.Unlock()
+	log.Printf("[TLS-RF Cache] loaded %d persistent entries", len(entries))
+	return nil
+}
+
+func (rm *RuleManager) isTLSRFCached(host string) bool {
+	host = normalizeHost(host)
+	if host == "" {
+		return false
+	}
+	rm.mu.RLock()
+	_, ok := rm.tlsRFCache[host]
+	rm.mu.RUnlock()
+	return ok
+}
+
+func (rm *RuleManager) markTLSRF(host, reason string) error {
+	host = normalizeHost(host)
+	if host == "" {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	rm.mu.Lock()
+	if rm.tlsRFCache == nil {
+		rm.tlsRFCache = make(map[string]TLSRFCacheEntry)
+	}
+	if _, exists := rm.tlsRFCache[host]; exists {
+		rm.mu.Unlock()
+		return nil
+	}
+	rm.tlsRFCache[host] = TLSRFCacheEntry{
+		CachedAt: now,
+		Reason:   strings.TrimSpace(reason),
+	}
+	entries := make(map[string]TLSRFCacheEntry, len(rm.tlsRFCache))
+	for k, v := range rm.tlsRFCache {
+		entries[k] = v
+	}
+	rm.mu.Unlock()
+
+	if err := writeTLSRFCacheFile(tlsRFCachePath(rm.rulesPath), entries); err != nil {
+		log.Printf("[TLS-RF Cache] save failed for %s: %v", host, err)
+		return err
+	}
+	log.Printf("[TLS-RF Cache] persisted %s -> tls-rf (%s)", host, reason)
+	return nil
+}
+
+func writeTLSRFCacheFile(path string, entries map[string]TLSRFCacheEntry) error {
+	if path == "" {
+		return nil
+	}
+	payload, err := json.MarshalIndent(TLSRFCacheConfig{
+		Version: 1,
+		Entries: entries,
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	payload = append(payload, '\n')
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, payload, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
 func (r *RuleManager) SetRules(rules []Rule) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -131,6 +257,21 @@ func (r *RuleManager) matchRule(host, mode string) Rule {
 		return best
 	}
 
+	// Persistent TLS-RF learning cache takes precedence over AutoRouter,
+	// but never overrides an explicit manual SiteGroup rule. We already hold
+	// rm.mu.RLock here, so inspect the map directly rather than taking another
+	// RLock on the same mutex.
+	if _, ok := r.tlsRFCache[host]; ok {
+		log.Printf("[Router] %s -> tls-rf (PersistentTLSRFCache)", host)
+		r.emitRouteEvent(host, "tls-rf")
+		return Rule{
+			Mode:       "tls-rf",
+			Transport:  "auto",
+			Enabled:    true,
+			AutoRouted: true,
+		}
+	}
+
 	// 自动分流层：手动规则未命中时，查询 AutoRouter
 	if r.autoRouter != nil && r.autoRoutingConfig.Mode != "" {
 		autoRule := r.autoRouter.Decide(host)
@@ -160,6 +301,7 @@ func NewRuleManager(settingsPath, rulesPath string) *RuleManager {
 		settingsPath:        settingsPath,
 		rulesPath:           rulesPath,
 		rules:               []Rule{},
+		tlsRFCache:          make(map[string]TLSRFCacheEntry),
 		closeToTray:         true,
 		showMainOnAutoStart: true,
 		language:            "zh",
@@ -223,6 +365,9 @@ func (rm *RuleManager) LoadConfig() error {
 	}
 	if err := rm.loadRulesConfig(); err != nil {
 		return err
+	}
+	if err := rm.loadTLSRFCache(); err != nil {
+		log.Printf("[TLS-RF Cache] load failed: %v", err)
 	}
 
 	for i := range rm.siteGroups {
