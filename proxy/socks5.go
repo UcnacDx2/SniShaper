@@ -126,6 +126,25 @@ func (p *ProxyServer) handleSocks5Connect(ctx context.Context, writer io.Writer,
 
 	// QUIC 规则命中的 TCP 连接：本地终结 TLS 后经 H3/QUIC 上游 replay
 	// （handleQUICMITM），用 QUIC 绕过 TCP 层 SNI 阻断。
+	// Default foreign SOCKS5 HTTPS traffic uses the same adaptive TLS-RF
+	// policy as HTTP CONNECT: probe ordinary TLS first, then retry with
+	// TLS-RF when the handshake path fails. This must happen before
+	// dialUpstream(), because the ordinary connection has to be probed first.
+	if cr.effectiveMode == "transparent" &&
+		strings.EqualFold(strings.TrimSpace(cr.rule.FallbackMode), "tls-rf") &&
+		port == 443 {
+		p.tracef("[SOCKS5] adaptive TLS-RF mode")
+		socks5.SendReply(writer, statute.RepSuccess, req.LocalAddr)
+		hijackConn := &socks5HijackConn{
+			Conn:   clientConn,
+			reader: req.Reader,
+			writer: writer,
+		}
+		_ = hijackConn.SetDeadline(time.Time{})
+		p.handleAdaptiveTLSRF(hijackConn, cr.targetHost, cr.targetAddr, cr.rule)
+		return nil
+	}
+
 	if cr.effectiveMode == "quic" {
 		p.tracef("[SOCKS5] quic mode")
 		socks5.SendReply(writer, statute.RepSuccess, req.LocalAddr)
