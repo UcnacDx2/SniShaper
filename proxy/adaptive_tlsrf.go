@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,6 +14,21 @@ import (
 )
 
 const adaptiveTLSRFProbeTimeout = 8 * time.Second
+
+type tlsHandshakeAlertError struct {
+	Level       byte
+	Description byte
+}
+
+func (e *tlsHandshakeAlertError) Error() string {
+	return fmt.Sprintf("TLS alert level=%d description=%d", e.Level, e.Description)
+}
+
+func isPersistentTLSRFSignal(err error) bool {
+	var alertErr *tlsHandshakeAlertError
+	return errors.As(err, &alertErr) && alertErr.Description != 0 // close_notify is not a block signal
+}
+
 
 // handleAdaptiveTLSRF implements the default foreign HTTPS policy:
 //  1. send the original ClientHello over the normal transport;
@@ -61,7 +77,10 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 	}
 	candidates = dedupeDialCandidates(candidates)
 
-	// Ordinary path first.
+	// Ordinary path first. A persistent cache entry is created only when
+	// the upstream has already accepted the TCP connection and then returns
+	// an explicit TLS alert. DNS, TCP connect, SOCKS5, timeout, and EOF errors
+	// are deliberately excluded because they are not reliable TLS-block signals.
 	for _, candidate := range candidates {
 		conn, dialErr := p.dialWithRule(context.Background(), "tcp", candidate, rule)
 		if dialErr != nil {
@@ -91,6 +110,11 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 			return
 		}
 
+		if isPersistentTLSRFSignal(probeErr) && p.rules != nil {
+			// Persist only an explicit TLS Alert. Network-layer failures do not
+			// poison the cache, and the cache has no automatic TTL.
+			_ = p.rules.markTLSRF(host, probeErr.Error())
+		}
 		p.tracef("[AutoRoute] Ordinary TLS failed host=%s addr=%s: %v; trying TLS-RF", host, candidate, probeErr)
 		conn.Close()
 	}
@@ -206,7 +230,16 @@ func readTLSResponse(conn net.Conn, timeout time.Duration) ([]byte, error) {
 	record = append(record, payload...)
 
 	if contentType == 21 {
-		return nil, fmt.Errorf("upstream returned TLS alert")
+		level := byte(0)
+		description := byte(0)
+		if len(payload) >= 2 {
+			level = payload[0]
+			description = payload[1]
+		}
+		return nil, &tlsHandshakeAlertError{
+			Level:       level,
+			Description: description,
+		}
 	}
 	return record, nil
 }
