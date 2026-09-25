@@ -207,6 +207,21 @@ jobs:
             Copy-Item -Path (Join-Path $rulesSrc '*') -Destination $rulesDst -Recurse -Force
           }
 
+          $launcherSrc = Join-Path $env:GITHUB_WORKSPACE 'scripts'
+          foreach ($dir in @(
+            'build/bin/cli/Windows/x64',
+            'build/bin/cli/Windows/x86',
+            'build/bin/cli/Windows/arm64'
+          )) {
+            if (-not (Test-Path $launcherSrc)) {
+              Write-Host '::error::launcher scripts directory is missing'
+              exit 1
+            }
+            Copy-Item (Join-Path $launcherSrc 'start-snishaper-tline.ps1') $dir -Force
+            Copy-Item (Join-Path $launcherSrc 'start-snishaper-tline.cmd') $dir -Force
+            Copy-Item (Join-Path $launcherSrc 'TLINE-10809-README.txt') $dir -Force
+          }
+
       - name: Verify six targets and bundled rules
         shell: pwsh
         run: |
