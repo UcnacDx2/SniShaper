@@ -8,7 +8,7 @@ import (
 )
 
 // cnIPData is a generated CIDR snapshot of China mainland IPv4/IPv6 space.
-// Source: carrnot/china-ip-list release/ip.txt (aggregated from public operator/IP data).
+// Source: runishiwo/ChinaIPlist cnip.txt (daily aggregated mainland IPv4/IPv6 CIDRs from public operator/IP sources).
 // Keep this file bundled so routing remains deterministic even when GitHub/raw
 // endpoints are unreachable at runtime.
 //
