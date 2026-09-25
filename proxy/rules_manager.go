@@ -247,11 +247,10 @@ func (r *RuleManager) matchRule(host, mode string) Rule {
 	}
 
 	// 如果命中了特定规则
+	// Explicit site rules are authoritative. The global runtime mode only
+	// supplies the default when no specific rule matches; it must not
+	// downgrade an explicitly configured MITM rule to direct.
 	if bestScore >= 0 {
-		if mode == "transparent" && best.Mode == "mitm" {
-			log.Printf("[RuleMatch] Global Transparent detected: Downgrading MITM rule (%s) to DIRECT to avoid cert errors.", host)
-			best.Mode = "direct"
-		}
 		log.Printf("[Router] %s -> %s", host, best.Mode)
 		r.emitRouteEvent(host, best.Mode)
 		return best
