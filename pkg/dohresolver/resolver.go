@@ -11,10 +11,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/singleflight"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
