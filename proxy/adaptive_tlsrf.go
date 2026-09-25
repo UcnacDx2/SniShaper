@@ -86,7 +86,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 			p.tracef("[AutoRoute] Ordinary TLS succeeded host=%s addr=%s", host, candidate)
 			p.directTunnel(clientConn, &bufferedReadConn{
 				Conn:   conn,
-				reader: bytes.NewReader(response),
+				reader: io.MultiReader(bytes.NewReader(response), conn),
 			})
 			return
 		}
