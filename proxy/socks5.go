@@ -159,7 +159,7 @@ func (p *ProxyServer) handleSocks5Connect(ctx context.Context, writer io.Writer,
 			writer: writer,
 		}
 		_ = hijackConn.SetDeadline(time.Time{})
-		p.handleMITM(hijackConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr, cr.conn)
+		p.handleMITM(hijackConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
 	case "tls-rf":
 		hijackConn := &socks5HijackConn{
 			Conn:   clientConn,
