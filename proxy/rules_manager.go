@@ -141,12 +141,17 @@ func (r *RuleManager) matchRule(host, mode string) Rule {
 		}
 	}
 
-	// 未命中任何规则，走直连
-	log.Printf("[Router] %s -> direct (Default)", host)
-	r.emitRouteEvent(host, "direct")
+	// 未命中任何规则：启用自动国内/国外出口策略。
+	// 国内大陆目标由 Transport=auto 选择物理直连；国外目标走 T-Line，
+	// 普通 TLS 失败后由 FallbackMode 自动重试 TLS-RF。
+	log.Printf("[Router] %s -> transparent (Auto CN/T-Line)", host)
+	r.emitRouteEvent(host, "transparent")
 	return Rule{
-		Mode:    "direct",
-		Enabled: true,
+		Mode:         "transparent",
+		Transport:    "auto",
+		FallbackMode: "tls-rf",
+		Enabled:      true,
+		AutoRouted:   true,
 	}
 }
 
