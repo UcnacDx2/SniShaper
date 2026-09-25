@@ -258,6 +258,14 @@ func TestBuildDialCandidatesReversesNAT64LiteralForTLine(t *testing.T) {
 
 	p := NewProxyServer("127.0.0.1:0")
 	const nat64ProfileID = "1784437584701131300"
+	rm := NewRuleManager("", "")
+	rm.nat64Profiles = []NAT64Profile{{
+		ID:     nat64ProfileID,
+		Name:   "test-nat64",
+		Prefix: "2001:67c:2960:6464::/96",
+	}}
+	p.SetRuleManager(rm)
+
 	target := net.JoinHostPort("2001:67c:2960:6464::6812:202f", "443")
 
 	got := p.buildDialCandidates(
