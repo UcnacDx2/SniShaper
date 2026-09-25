@@ -45,6 +45,46 @@ func mapNAT64Addr(ipStr string, prefix string) (string, bool) {
 	return mappedIP.String(), true
 }
 
+// mapNAT64IPv6ToIPv4 reverses a configured /96 NAT64 address back to its
+// embedded IPv4 address. It only matches the exact configured prefix, so a
+// native IPv6 destination is never rewritten accidentally.
+func mapNAT64IPv6ToIPv4(ipStr string, prefix string) (string, bool) {
+	parsedIP := net.ParseIP(strings.TrimSpace(ipStr))
+	if parsedIP == nil || parsedIP.To4() != nil {
+		return ipStr, false
+	}
+	parsedIP = parsedIP.To16()
+	if parsedIP == nil {
+		return ipStr, false
+	}
+
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return ipStr, false
+	}
+
+	var prefixIP net.IP
+	var prefixBits int
+	if strings.Contains(prefix, "/") {
+		_, ipnet, err := net.ParseCIDR(prefix)
+		if err != nil || ipnet == nil {
+			return ipStr, false
+		}
+		prefixIP = ipnet.IP.To16()
+		prefixBits, _ = ipnet.Mask.Size()
+	} else {
+		prefixIP = net.ParseIP(prefix)
+		prefixBits = 128
+	}
+	if prefixIP == nil || prefixBits != 96 {
+		return ipStr, false
+	}
+
+	if !bytes.Equal(parsedIP[:12], prefixIP[:12]) {
+		return ipStr, false
+	}
+	return net.IP(parsedIP[12:16]).To4().String(), true
+
 // orderIPsByDNSMode 按 dns_mode 对解析出的 IP 列表排序/过滤地址族：
 //
 //	ipv4_only: 仅保留 IPv4
@@ -91,6 +131,11 @@ func (p *ProxyServer) resolveDomainCandidates(ctx context.Context, host, port, d
 	if dnsMode == "system" {
 		ips, err := net.LookupIP(host)
 		if err == nil && len(ips) > 0 {
+			// Preserve the system resolver's ordering normally, but T-Line is
+			// IPv4-only, so its transport must not receive IPv6 candidates.
+			if tlineSOCKS5Addr() != "" {
+				ips = orderIPsByDNSMode(ips, dnsMode)
+			}
 			candidates := make([]string, 0, len(ips))
 			for _, ip := range ips {
 				candidates = append(candidates, net.JoinHostPort(ip.String(), port))
@@ -126,8 +171,16 @@ func (p *ProxyServer) buildDialCandidates(ctx context.Context, targetHost, targe
 		dialPort = defaultPort
 	}
 
-	// 字面 IP 目标（如 TUN 下浏览器 DoH 解析的真实 IP）：直接返回原地址保留端口
+	// 字面 IP 目标（如 TUN 下浏览器 DoH/DNS64 已经解析出的地址）：
+	// 在 T-Line IPv4-only 模式下，如果它是本地配置的 NAT64 合成地址，
+	// 反解回原始 IPv4，避免把不可路由的 IPv6 字面地址交给 IPv4-only SOCKS5。
 	if isLiteralIP(targetHost) {
+		if tlineSOCKS5Addr() != "" && rule.NAT64Enabled && rule.NAT64ProfileID != "" {
+			prefix := p.rules.GetNAT64PrefixByID(rule.NAT64ProfileID)
+			if mappedIP, ok := mapNAT64IPv6ToIPv4(targetHost, prefix); ok {
+				return []string{net.JoinHostPort(mappedIP, dialPort)}
+			}
+		}
 		return []string{targetAddr}
 	}
 	resolvedUpstream := resolveRuleUpstream(targetHost, rule)
@@ -240,7 +293,10 @@ func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 		dialCandidates = []string{cr.targetAddr}
 	}
 
-	if cr.rule.NAT64Enabled && cr.rule.NAT64ProfileID != "" {
+	// T-Line is an IPv4-only upstream transport, so do not translate IPv4
+	// candidates into NAT64 IPv6 here. Native NAT64 translation is only needed
+	// for direct sockets when T-Line is disabled.
+	if tlineSOCKS5Addr() == "" && cr.rule.NAT64Enabled && cr.rule.NAT64ProfileID != "" {
 		prefix := p.rules.GetNAT64PrefixByID(cr.rule.NAT64ProfileID)
 		if prefix != "" {
 			var mapped []string
