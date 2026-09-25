@@ -70,6 +70,46 @@ sudo ./SniShaper
 ./build/bin/cli/Linux/x64/snishaper
 ```
 
+#### Windows CLI + T-Line 10809 一键启动
+
+Windows CLI 压缩包中的 Windows x64 / x86 / arm64 目录同时提供以下启动脚本：
+
+| 脚本 | 用途 |
+| --- | --- |
+| `start-snishaper-tline.cmd` | 检查 T-Line SOCKS5、配置 `127.0.0.1:10809`、启动 SniShaper 并开启代理 |
+| `stop-snishaper-tline.cmd` | 关闭 SniShaper 本地代理并停止 SniShaper 服务 |
+| `start-snishaper-tline.ps1` | PowerShell 版本的启动脚本 |
+| `stop-snishaper-tline.ps1` | PowerShell 版本的停止脚本 |
+
+使用前请先确保 **T-Line 已经运行，并监听 `127.0.0.1:10809` SOCKS5**。T-Line 本身不会随 SniShaper CLI 一起打包。
+
+最简单的使用方式：
+
+```powershell
+# 进入 Windows CLI 解压目录，例如 x64
+cd .\\Windows\\x64
+
+# 启动：T-Line -> SniShaper -> 本地代理
+.\\start-snishaper-tline.cmd
+
+# 使用 SniShaper 提供的本地代理
+# HTTP  : 127.0.0.1:8080
+# SOCKS5: 127.0.0.1:8081
+
+# 停止 SniShaper（不会停止 T-Line）
+.\\stop-snishaper-tline.cmd
+```
+
+PowerShell 也可以直接运行：
+
+```powershell
+.\\start-snishaper-tline.ps1
+.\\stop-snishaper-tline.ps1
+```
+
+启动脚本会自动设置 `SNISHAPER_TLINE_SOCKS5=127.0.0.1:10809`，并重启 SniShaper 服务使该环境变量被后台服务继承；停止脚本只关闭 SniShaper，**T-Line 继续保持运行**。
+
+
 ### 证书重新安装
 
 在主界面点击「证书管理」-> 「**重置根证书**」。CLI 版使用 `snishaper ca regenerate` 后重新 `ca install`。
