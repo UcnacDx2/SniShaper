@@ -758,7 +758,7 @@
     {
       "id": "sg-1771319670672-48-main",
       "name": "youtube-main",
-      "mode": "transparent",
+      "mode": "tls-rf",
       "dns_mode": "prefer_ipv6",
       "sni_fake": "g.cn",
       "domains": [
