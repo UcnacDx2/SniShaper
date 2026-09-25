@@ -170,13 +170,15 @@ func (p *ProxyServer) handleSocks5Connect(ctx context.Context, writer io.Writer,
 
 	switch cr.effectiveMode {
 	case "mitm":
+		// Preserve the original server certificate for clients; reuse the TLS-RF
+		// path instead of terminating TLS with SniShaper's local CA.
 		hijackConn := &socks5HijackConn{
 			Conn:   clientConn,
 			reader: req.Reader,
 			writer: writer,
 		}
 		_ = hijackConn.SetDeadline(time.Time{})
-		p.handleMITM(hijackConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
+		p.handleTLSFragment(hijackConn, cr.conn, cr.targetHost, cr.rule)
 	case "tls-rf":
 		hijackConn := &socks5HijackConn{
 			Conn:   clientConn,

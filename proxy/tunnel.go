@@ -170,7 +170,9 @@ func (p *ProxyServer) handleConnect(w http.ResponseWriter, req *http.Request, ru
 
 	switch cr.effectiveMode {
 	case "mitm":
-		p.handleMITM(clientConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
+		// Preserve the original server certificate for clients; reuse the TLS-RF
+		// path instead of terminating TLS with SniShaper's local CA.
+		p.handleTLSFragment(clientConn, cr.conn, cr.targetHost, cr.rule)
 	case "tls-rf":
 		// The automatic transport policy is IP-authoritative: if the selected
 		// candidate is a mainland/private IP, never apply TLS-RF even when the
