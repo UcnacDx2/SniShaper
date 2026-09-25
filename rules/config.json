@@ -781,7 +781,7 @@
     {
       "id": "sg-1771319670672-48",
       "name": "youtube",
-      "mode": "transparent",
+      "mode": "mitm",
       "dns_mode": "prefer_ipv6",
       "sni_fake": "g.cn",
       "domains": [
@@ -792,6 +792,7 @@
         "usercontent.youtube.com",
         "youtu.be",
         "youtube-nocookie.com",
+        "youtube.com",
         "ytimg.com",
         "signaler-pa.clients6.google.com"
       ],
@@ -805,9 +806,8 @@
       },
       "website": "google",
       "enabled": true,
-      "nat64_enabled": false,
-      "fallback_mode": "tls-rf",
-      "transport": "tline"
+      "upstream": "47.102.115.14",
+      "nat64_enabled": false
     },
     {
       "id": "sg-1771319670672-50",
