@@ -776,8 +776,7 @@
       "website": "google",
       "enabled": true,
       "nat64_enabled": false,
-      "transport": "tline",
-      "fallback_mode": "tls-rf"
+      "transport": "tline"
     },
     {
       "id": "sg-1771319670672-48",
