@@ -457,6 +457,10 @@ func (p *ProxyServer) EstablishUpstreamConn(host string, rule Rule, dialCandidat
 }
 
 func (p *ProxyServer) establishUpstreamConn(host string, rule Rule, dialCandidates []string, initialALPN string) (net.Conn, string, error) {
+	return p.establishUpstreamConnWithInitial(host, rule, dialCandidates, initialALPN, nil, "")
+}
+
+func (p *ProxyServer) establishUpstreamConnWithInitial(host string, rule Rule, dialCandidates []string, initialALPN string, initialConn net.Conn, initialAddr string) (net.Conn, string, error) {
 	// Ultimate Defense: Flatten and sanitize candidates to guarantee they are split and contain ports
 	var sanitized []string
 	seen := map[string]struct{}{}
@@ -486,7 +490,13 @@ func (p *ProxyServer) establishUpstreamConn(host string, rule Rule, dialCandidat
 	p.tracef("[Upstream] Establishing connection to %s, candidates: %v, initial ALPN: %s", host, dialCandidates, initialALPN)
 
 	if len(dialCandidates) == 1 {
-		conn, err := p.dialWithRule(context.Background(), "tcp", dialCandidates[0], rule)
+		conn := initialConn
+		var err error
+		if conn == nil {
+			conn, err = p.dialWithRule(context.Background(), "tcp", dialCandidates[0], rule)
+		} else {
+			p.tracef("[Upstream] Reusing preconnected candidate %s", initialAddr)
+		}
 		if err != nil {
 			return nil, "", err
 		}
