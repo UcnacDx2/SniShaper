@@ -26,7 +26,7 @@ import (
 	utls "github.com/refraction-networking/utls"
 )
 
-func (p *ProxyServer) handleMITM(clientConn net.Conn, host string, rule Rule, dialCandidates []string, initialDialAddr string, initialUpstreamConn net.Conn) {
+func (p *ProxyServer) handleMITM(clientConn net.Conn, host string, rule Rule, dialCandidates []string, initialDialAddr string) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.tracef("[MITM] Panic: %v", r)
@@ -89,7 +89,7 @@ func (p *ProxyServer) handleMITM(clientConn net.Conn, host string, rule Rule, di
 
 				p.tracef("[MITM] Client supported ALPNs: %v, selected initialALPN: %s", hello.SupportedProtos, initialALPN)
 				p.tracef("[MITM] Establishing upstream via candidates=%v", orderedCandidates)
-				upstreamRW, upstreamProtocol, upstreamErr = p.establishUpstreamConnWithInitial(host, rule, orderedCandidates, initialALPN, initialUpstreamConn, initialDialAddr)
+				upstreamRW, upstreamProtocol, upstreamErr = p.establishUpstreamConn(host, rule, orderedCandidates, initialALPN)
 			})
 
 			if upstreamErr != nil {
