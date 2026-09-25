@@ -656,6 +656,25 @@ jobs:
             @{ dir = 'build\bin\cli\Darwin\x64';    name = 'snishaper-cli-darwin-amd64' }
             @{ dir = 'build\bin\cli\Darwin\arm64';  name = 'snishaper-cli-darwin-arm64' }
           )
+          $launcherSrc = Join-Path $env:GITHUB_WORKSPACE 'scripts'
+          if (-not (Test-Path $launcherSrc)) {
+            Write-Host "::error::launcher scripts directory is missing: $launcherSrc"
+            exit 1
+          }
+          foreach ($dir in @(
+            'build\bin\cli\Windows\x64',
+            'build\bin\cli\Windows\x86',
+            'build\bin\cli\Windows\arm64'
+          )) {
+            if (-not (Test-Path (Join-Path $dir 'snishaper.exe'))) {
+              Write-Host "::error::missing Windows CLI binary: $dir"
+              exit 1
+            }
+            Copy-Item (Join-Path $launcherSrc 'start-snishaper-tline.ps1') $dir -Force
+            Copy-Item (Join-Path $launcherSrc 'start-snishaper-tline.cmd') $dir -Force
+            Copy-Item (Join-Path $launcherSrc 'TLINE-10809-README.txt') $dir -Force
+          }
+
           foreach ($t in $targets) {
             if (-not (Test-Path $t.dir)) {
               Write-Host "::error::missing CLI output directory $($t.dir)"
