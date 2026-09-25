@@ -17,7 +17,7 @@ func tlineSOCKS5Addr() string {
 	return strings.TrimSpace(os.Getenv(tlineSOCKS5Env))
 }
 
-func isTCPNetwork(network string) bool {
+func tlineIsTCPNetwork(network string) bool {
 	switch strings.ToLower(strings.TrimSpace(network)) {
 	case "tcp", "tcp4", "tcp6":
 		return true
@@ -26,7 +26,7 @@ func isTCPNetwork(network string) bool {
 	}
 }
 
-func dialViaSOCKS5(ctx context.Context, proxyAddr, targetAddr string) (net.Conn, error) {
+func tlineDialViaSOCKS5(ctx context.Context, proxyAddr, targetAddr string) (net.Conn, error) {
 	targetHost, targetPort, err := net.SplitHostPort(targetAddr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SOCKS5 target %q: %w", targetAddr, err)
@@ -53,7 +53,7 @@ func dialViaSOCKS5(ctx context.Context, proxyAddr, targetAddr string) (net.Conn,
 	_ = conn.SetDeadline(deadline)
 	defer conn.SetDeadline(time.Time{})
 
-	if err := writeAll(conn, []byte{0x05, 0x01, 0x00}); err != nil {
+	if err := tlineWriteAll(conn, []byte{0x05, 0x01, 0x00}); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("SOCKS5 greeting write: %w", err)
 	}
@@ -91,7 +91,7 @@ func dialViaSOCKS5(ctx context.Context, proxyAddr, targetAddr string) (net.Conn,
 	}
 	request = append(request, byte(port>>8), byte(port))
 
-	if err := writeAll(conn, request); err != nil {
+	if err := tlineWriteAll(conn, request); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("SOCKS5 CONNECT write: %w", err)
 	}
@@ -107,7 +107,7 @@ func dialViaSOCKS5(ctx context.Context, proxyAddr, targetAddr string) (net.Conn,
 	}
 	if replyHeader[1] != 0x00 {
 		conn.Close()
-		return nil, fmt.Errorf("T-Line SOCKS5 CONNECT %s failed: %s", targetAddr, socks5ReplyText(replyHeader[1]))
+		return nil, fmt.Errorf("T-Line SOCKS5 CONNECT %s failed: %s", targetAddr, tlineSOCKS5ReplyText(replyHeader[1]))
 	}
 
 	switch replyHeader[3] {
@@ -142,7 +142,7 @@ func dialViaSOCKS5(ctx context.Context, proxyAddr, targetAddr string) (net.Conn,
 	return conn, nil
 }
 
-func writeAll(conn net.Conn, payload []byte) error {
+func tlineWriteAll(conn net.Conn, payload []byte) error {
 	for len(payload) > 0 {
 		n, err := conn.Write(payload)
 		if err != nil {
@@ -156,7 +156,7 @@ func writeAll(conn net.Conn, payload []byte) error {
 	return nil
 }
 
-func socks5ReplyText(code byte) string {
+func tlineSOCKS5ReplyText(code byte) string {
 	switch code {
 	case 0x01:
 		return "general SOCKS server failure"
