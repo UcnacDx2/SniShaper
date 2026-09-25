@@ -758,7 +758,7 @@
     {
       "id": "sg-1771319670672-48-main",
       "name": "youtube-main",
-      "mode": "mitm",
+      "mode": "transparent",
       "dns_mode": "prefer_ipv6",
       "sni_fake": "g.cn",
       "domains": [
@@ -776,7 +776,8 @@
       "website": "google",
       "enabled": true,
       "nat64_enabled": false,
-      "transport": "tline"
+      "transport": "tline",
+      "fallback_mode": "tls-rf"
     },
     {
       "id": "sg-1771319670672-48",
