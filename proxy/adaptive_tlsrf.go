@@ -3,6 +3,10 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +18,90 @@ import (
 )
 
 const adaptiveTLSRFProbeTimeout = 8 * time.Second
+
+// Known public-root fingerprints used by TLS interception software.
+// These are treated as suspicious even when the host OS happens to trust them.
+var knownTLSRFInterceptionRootFingerprints = map[string]struct{}{
+	"596bea0e9186bb94279f8dffa5fa6c4904d7d59137ad3b644b76b69ce85226d3": {},
+}
+
+type tlsCertificateProbeResult struct {
+	suspicious bool
+	reason     string
+}
+
+func (p *ProxyServer) probeTLSCertificate(host, candidate string, rule Rule) (tlsCertificateProbeResult, error) {
+	conn, err := p.dialWithRule(context.Background(), "tcp", candidate, rule)
+	if err != nil {
+		return tlsCertificateProbeResult{}, err
+	}
+	defer conn.Close()
+
+	tlsConn := tls.Client(conn, &tls.Config{
+		ServerName:         host,
+		InsecureSkipVerify: true, // verification is performed explicitly below
+		MinVersion:         tls.VersionTLS12,
+		NextProtos:         []string{"h2", "http/1.1"},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), adaptiveTLSRFProbeTimeout)
+	defer cancel()
+
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		return tlsCertificateProbeResult{}, err
+	}
+	state := tlsConn.ConnectionState()
+	if len(state.PeerCertificates) == 0 {
+		return tlsCertificateProbeResult{suspicious: true, reason: "server sent no certificate"}, nil
+	}
+
+	roots, err := x509.SystemCertPool()
+	if err != nil || roots == nil {
+		return tlsCertificateProbeResult{}, fmt.Errorf("public CA pool unavailable: %w", err)
+	}
+
+	intermediates := x509.NewCertPool()
+	for _, cert := range state.PeerCertificates[1:] {
+		intermediates.AddCert(cert)
+	}
+	_, err = state.PeerCertificates[0].Verify(x509.VerifyOptions{
+		Roots:         roots,
+		Intermediates: intermediates,
+		DNSName:       host,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	})
+	if err != nil {
+		return tlsCertificateProbeResult{
+			Suspicious: true,
+			Reason:     "public CA/hostname verification failed: " + err.Error(),
+		}, nil
+	}
+
+	// Verify() returns the built chain including the trust root. Inspect the
+	// root rather than only the leaf issuer because the interception root may
+	// already be installed in the host OS trust store.
+	chains, _ := state.PeerCertificates[0].Verify(x509.VerifyOptions{
+		Roots:         roots,
+		Intermediates: intermediates,
+		DNSName:       host,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	})
+	for _, chain := range chains {
+		if len(chain) == 0 {
+			continue
+		}
+		root := chain[len(chain)-1]
+		sum := sha256.Sum256(root.Raw)
+		fingerprint := hex.EncodeToString(sum[:])
+		if _, ok := knownTLSRFInterceptionRootFingerprints[fingerprint]; ok {
+			return tlsCertificateProbeResult{
+				Suspicious: true,
+				Reason:     "known TLS interception root: " + root.Subject.String(),
+			}, nil
+		}
+	}
+
+	return tlsCertificateProbeResult{reason: "public CA verified"}, nil
+}
 
 type tlsHandshakeAlertError struct {
 	Level       byte
@@ -83,11 +171,30 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 	}
 	candidates = dedupeDialCandidates(candidates)
 
-	// Ordinary path first. A persistent cache entry is created only when
-	// the upstream has already accepted the TCP connection and then returns
-	// an explicit TLS alert. DNS, TCP connect, SOCKS5, timeout, and EOF errors
-	// are deliberately excluded because they are not reliable TLS-block signals.
-	for _, candidate := range candidates {
+	// Ordinary path first for unknown hosts. A persistent cache entry means
+	// the host has already proven that TLS-RF is needed, so skip the extra probe
+	// and go straight to the fragmented handshake (subject to mainland-IP
+	// override below).
+	cachedTLSRF := p.rules != nil && p.rules.isTLSRFCached(host)
+	if !cachedTLSRF {
+		for _, candidate := range candidates {
+		if !cachedTLSRF {
+			if strings.EqualFold(rule.Transport, "auto") && p.isChinaMainlandDestination(context.Background(), candidate) {
+				continue
+			}
+			certResult, certProbeErr := p.probeTLSCertificate(host, candidate, rule)
+			if certProbeErr == nil {
+				p.tracef("[CertProbe] host=%s addr=%s suspicious=%v reason=%s", host, candidate, certResult.suspicious, certResult.reason)
+				if certResult.Suspicious {
+					if p.rules != nil {
+						_ = p.rules.markTLSRF(host, certResult.Reason)
+					}
+					cachedTLSRF = true
+					break
+				}
+			}
+		}
+
 		conn, dialErr := p.dialWithRule(context.Background(), "tcp", candidate, rule)
 		if dialErr != nil {
 			p.tracef("[AutoRoute] Ordinary dial failed host=%s addr=%s err=%v", host, candidate, dialErr)
@@ -123,6 +230,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 		}
 		p.tracef("[AutoRoute] Ordinary TLS failed host=%s addr=%s: %v; trying TLS-RF", host, candidate, probeErr)
 		conn.Close()
+		}
 	}
 
 	// TLS-RF retry on the same resolved candidates.
@@ -131,6 +239,16 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 		if dialErr != nil {
 			p.tracef("[TLS-RF] Retry dial failed host=%s addr=%s err=%v", host, candidate, dialErr)
 			continue
+		}
+
+		if strings.EqualFold(rule.Transport, "auto") && p.isChinaMainlandDestination(context.Background(), candidate) {
+			p.tracef("[AutoRoute] TLS-RF candidate %s resolved to mainland; using physical direct", candidate)
+			if err := writeFull(conn, record); err != nil {
+				conn.Close()
+				continue
+			}
+			p.directTunnel(clientConn, conn)
+			return
 		}
 
 		fragmented := append([]byte(nil), record...)
