@@ -3704,7 +3704,6 @@
       "cert_verify": {},
       "website": "X",
       "enabled": true,
-      "upstream": "151.101.2.146",
       "nat64_enabled": false
     },
     {
