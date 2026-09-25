@@ -417,3 +417,6 @@ python tools/scanner.py example.com:80 1.0.0.0/16 64
 ## 许可
 
 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）。
+
+
+<!-- CI artifact trigger -->
