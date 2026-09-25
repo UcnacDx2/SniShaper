@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -49,7 +50,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 	}
 
 	candidates := p.buildDialCandidates(
-		netContextBackground(),
+		context.Background(),
 		host,
 		ensureAddrWithPort(targetAddr, "443"),
 		rule,
@@ -62,7 +63,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 
 	// Ordinary path first.
 	for _, candidate := range candidates {
-		conn, dialErr := p.dialWithRule(netContextBackground(), "tcp", candidate, rule)
+		conn, dialErr := p.dialWithRule(context.Background(), "tcp", candidate, rule)
 		if dialErr != nil {
 			p.tracef("[AutoRoute] Ordinary dial failed host=%s addr=%s err=%v", host, candidate, dialErr)
 			continue
@@ -70,7 +71,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 
 		// A mainland IP selected by Transport=auto must stay physical and must
 		// not be subjected to TLS-RF fallback.
-		if strings.EqualFold(rule.Transport, "auto") && p.isChinaMainlandDestination(netContextBackground(), candidate) {
+		if strings.EqualFold(rule.Transport, "auto") && p.isChinaMainlandDestination(context.Background(), candidate) {
 			p.tracef("[AutoRoute] Mainland candidate %s -> physical direct", candidate)
 			if err := writeFull(conn, record); err != nil {
 				conn.Close()
@@ -96,7 +97,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 
 	// TLS-RF retry on the same resolved candidates.
 	for _, candidate := range candidates {
-		conn, dialErr := p.dialWithRule(netContextBackground(), "tcp", candidate, rule)
+		conn, dialErr := p.dialWithRule(context.Background(), "tcp", candidate, rule)
 		if dialErr != nil {
 			p.tracef("[TLS-RF] Retry dial failed host=%s addr=%s err=%v", host, candidate, dialErr)
 			continue
@@ -143,7 +144,7 @@ func (p *ProxyServer) handleAdaptiveTLSRF(clientConn net.Conn, host, targetAddr 
 
 func (p *ProxyServer) dialFirstCandidate(host, targetAddr string, rule Rule, tried map[string]struct{}) (net.Conn, error) {
 	candidates := p.buildDialCandidates(
-		netContextBackground(),
+		context.Background(),
 		host,
 		ensureAddrWithPort(targetAddr, "443"),
 		rule,
@@ -160,7 +161,7 @@ func (p *ProxyServer) dialFirstCandidate(host, targetAddr string, rule Rule, tri
 				continue
 			}
 		}
-		conn, err := p.dialWithRule(netContextBackground(), "tcp", candidate, rule)
+		conn, err := p.dialWithRule(context.Background(), "tcp", candidate, rule)
 		if err == nil {
 			return conn, nil
 		}
