@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"strconv"
 	"bufio"
 	"context"
 	"fmt"
@@ -20,7 +21,10 @@ func TestTLineSOCKS5OutboundLoop(t *testing.T) {
 	}
 	defer targetLn.Close()
 
-	targetAddr := targetLn.Addr().String()
+	// Use a TEST-NET address so the production mainland/private egress rule does
+	// not intentionally bypass T-Line. The mock SOCKS server maps this address
+	// back to the local target listener after verifying what SniShaper requested.
+	targetAddr := net.JoinHostPort("198.51.100.10", strconv.Itoa(targetLn.Addr().(*net.TCPAddr).Port))
 	targetDone := make(chan struct{})
 	go func() {
 		defer close(targetDone)
@@ -110,7 +114,11 @@ func TestTLineSOCKS5OutboundLoop(t *testing.T) {
 		seenTarget = requested
 		mu.Unlock()
 
-		upstream, err := net.DialTimeout("tcp", requested, 3*time.Second)
+		connectAddr := requested
+		if host == "198.51.100.10" {
+			connectAddr = targetLn.Addr().String()
+		}
+		upstream, err := net.DialTimeout("tcp", connectAddr, 3*time.Second)
 		if err != nil {
 			_, _ = conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 			return
