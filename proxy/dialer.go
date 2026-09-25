@@ -407,11 +407,17 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 		}
 	}
 
-	if transport != "physical" {
-		if tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && tlineIsTCPNetwork(network) {
-			p.tracef("[T-Line] dialing %s via SOCKS5 %s (transport=%s)", addr, tlineSocks5, transport)
-			return tlineDialViaSOCKS5(ctx, tlineSocks5, addr)
+	if transport != "physical" && tlineIsTCPNetwork(network) {
+		tlineSocks5 := tlineSOCKS5Addr()
+		if tlineSocks5 == "" {
+			// Foreign/T-Line TCP traffic must fail closed. The previous code
+			// silently fell through to net.Dial when the environment variable
+			// was missing, which bypassed T-Line and exposed the physical ISP
+			// path (for example, receiving an injected/non-YouTube certificate).
+			return nil, fmt.Errorf("T-Line transport requested for %s but %s is not configured", addr, tlineSOCKS5Env)
 		}
+		p.tracef("[T-Line] dialing %s via SOCKS5 %s (transport=%s)", addr, tlineSocks5, transport)
+		return tlineDialViaSOCKS5(ctx, tlineSocks5, addr)
 	}
 	if rule.NAT64Enabled && rule.NAT64ProfileID != "" {
 		prefix := p.rules.GetNAT64PrefixByID(rule.NAT64ProfileID)
