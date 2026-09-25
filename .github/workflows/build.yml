@@ -175,7 +175,7 @@ jobs:
             $env:GOOS = $t.GOOS
             $env:GOARCH = $t.GOARCH
             if ($null -ne $t.GOARM) { $env:GOARM = $t.GOARM } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
-            Write-Host "Building $($t.GOOS)/$($t.GOARCH)$(if ($null -ne $t.GOARM) { "/$($t.GOARM)" } else { "" }) -> $($t.Out)"
+            Write-Host "Building $($t.GOOS)/$($t.GOARCH)$(if ($null -ne $t.GOARM) { '/' + $t.GOARM } else { '' }) -> $($t.Out)"
             go build -tags "with_gvisor headless" -trimpath -o $t.Out ./cli
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
