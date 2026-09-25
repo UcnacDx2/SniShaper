@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+
+	"golang.org/x/sync/singleflight"
 	"time"
 
 	"github.com/miekg/dns"
@@ -67,10 +69,11 @@ type dnsCacheEntry struct {
 }
 
 type FailoverResolver struct {
-	proxy    ProxyServer
-	getNodes func() []DNSNode
-	dnsCache sync.Map // domain -> *dnsCacheEntry
-	echCache sync.Map // domain -> []byte (ECH config hot-patched by server retry)
+	proxy        ProxyServer
+	getNodes     func() []DNSNode
+	dnsCache     sync.Map // domain -> *dnsCacheEntry
+	resolveGroup singleflight.Group
+	echCache     sync.Map // domain -> []byte (ECH config hot-patched by server retry)
 }
 
 func NewFailoverResolver(proxy ProxyServer, getNodes func() []DNSNode) *FailoverResolver {
@@ -384,26 +387,43 @@ func (r *FailoverResolver) TestNode(ctx context.Context, node DNSNode) ([]string
 }
 
 func (r *FailoverResolver) ResolveIPs(ctx context.Context, domain string) ([]string, error) {
-	now := time.Now()
+	domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domain), "."))
+	if domain == "" {
+		return nil, fmt.Errorf("empty DNS domain")
+	}
 
+	now := time.Now()
 	if val, ok := r.dnsCache.Load(domain); ok {
 		entry := val.(*dnsCacheEntry)
 		if now.Before(entry.expiresAt) {
 			return entry.ips, nil
 		}
 		if now.Before(entry.staleAt) {
+			// Serve stale data immediately. singleflight ensures only one
+			// refresh for this domain can run at a time.
 			go func(dom string) {
 				bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				_, _ = r.resolveAndCache(bgCtx, dom)
+				_, _, _ = r.resolveGroup.Do(dom, func() (interface{}, error) {
+					return r.resolveAndCache(bgCtx, dom)
+				})
 			}(domain)
 			return entry.ips, nil
 		}
 	}
 
-	return r.resolveAndCache(ctx, domain)
+	value, err, _ := r.resolveGroup.Do(domain, func() (interface{}, error) {
+		return r.resolveAndCache(ctx, domain)
+	})
+	if err != nil {
+		return nil, err
+	}
+	ips, ok := value.([]string)
+	if !ok {
+		return nil, fmt.Errorf("unexpected DNS resolver result type %T", value)
+	}
+	return ips, nil
 }
-
 func (r *FailoverResolver) resolveAndCache(ctx context.Context, domain string) ([]string, error) {
 	ipAddrs, err := r.ResolveIPAddrs(ctx, domain)
 	if err != nil {
