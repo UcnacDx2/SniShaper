@@ -2,7 +2,9 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"net"
+	"path/filepath"
 	"testing"
 )
 
@@ -78,5 +80,43 @@ func TestAutoDestinationLiteralIP(t *testing.T) {
 	}
 	if p.isChinaMainlandDestination(context.Background(), "8.8.8.8:443") {
 		t.Fatal("expected foreign IP to use T-Line")
+	}
+}
+
+func TestPersistentTLSRFCacheRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	rulesPath := filepath.Join(dir, "config.json")
+
+	rm := NewRuleManager("", rulesPath)
+	if err := rm.markTLSRF("WWW.Example.com.", "TLS alert level=2 description=40"); err != nil {
+		t.Fatalf("markTLSRF: %v", err)
+	}
+
+	loaded := NewRuleManager("", rulesPath)
+	if err := loaded.loadTLSRFCache(); err != nil {
+		t.Fatalf("loadTLSRFCache: %v", err)
+	}
+	if !loaded.isTLSRFCached("www.example.com") {
+		t.Fatal("expected TLS-RF cache entry to survive reload")
+	}
+
+	rule := loaded.matchRule("www.example.com", "direct")
+	if rule.Mode != "tls-rf" || rule.Transport != "auto" {
+		t.Fatalf("cached rule=%+v, want tls-rf + auto", rule)
+	}
+}
+
+func TestTLSRFCacheOnlyExplicitTLSAlert(t *testing.T) {
+	if !isPersistentTLSRFSignal(&tlsHandshakeAlertError{Level: 2, Description: 40}) {
+		t.Fatal("TLS alert should be cacheable")
+	}
+	if isPersistentTLSRFSignal(errors.New("i/o timeout")) {
+		t.Fatal("network timeout must not be cacheable")
+	}
+	if isPersistentTLSRFSignal(errors.New("EOF")) {
+		t.Fatal("EOF must not be cacheable")
+	}
+	if isPersistentTLSRFSignal(&tlsHandshakeAlertError{Level: 1, Description: 0}) {
+		t.Fatal("close_notify must not be treated as a block")
 	}
 }
