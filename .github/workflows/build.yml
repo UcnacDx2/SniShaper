@@ -182,6 +182,24 @@ jobs:
           if (-not $v) { Write-Host "::error::empty CLI version"; exit 1 }
           & .\build\bin\cli\Windows\x64\snishaper.exe help | Out-Null
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::CLI help failed"; exit 1 }
+      - name: Upload CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: snishaper-cli-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            build/bin/cli/Windows/x64/snishaper.exe
+            build/bin/cli/Windows/x86/snishaper.exe
+            build/bin/cli/Windows/arm64/snishaper.exe
+            build/bin/cli/Linux/x64/snishaper
+            build/bin/cli/Linux/arm64/snishaper
+
+      - name: Upload Windows x64 CLI
+        uses: actions/upload-artifact@v6
+        with:
+          name: snishaper-cli-windows-x64-${{ github.sha }}
+          if-no-files-found: error
+          path: build/bin/cli/Windows/x64/snishaper.exe
 
   # ------------------------------------------------------------------
   # CLI: Darwin, built natively and smoke-tested on real macOS runners.
@@ -232,4 +250,10 @@ jobs:
           echo "::notice::CLI (${{ matrix.platform }}/${{ matrix.arch }}) version: $V"
           if [ -z "$V" ]; then echo "::error::empty CLI version"; exit 1; fi
           "$BIN" help >/dev/null
+      - name: Upload Darwin CLI
+        uses: actions/upload-artifact@v6
+        with:
+          name: snishaper-cli-darwin-${{ matrix.arch }}-${{ github.sha }}
+          if-no-files-found: error
+          path: build/bin/cli/Darwin/${{ matrix.arch }}/snishaper
 
