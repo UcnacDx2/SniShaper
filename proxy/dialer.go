@@ -407,9 +407,11 @@ func (p *ProxyServer) dialWithRule(ctx context.Context, network, addr string, ru
 		}
 	}
 
-	if transport != "physical" && tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && tlineIsTCPNetwork(network) {
-		p.tracef("[T-Line] dialing %s via SOCKS5 %s (transport=%s)", addr, tlineSocks5, transport)
-		return tlineDialViaSOCKS5(ctx, tlineSocks5, addr)
+	if transport != "physical" {
+		if tlineSocks5 := tlineSOCKS5Addr(); tlineSocks5 != "" && tlineIsTCPNetwork(network) {
+			p.tracef("[T-Line] dialing %s via SOCKS5 %s (transport=%s)", addr, tlineSocks5, transport)
+			return tlineDialViaSOCKS5(ctx, tlineSocks5, addr)
+		}
 	}
 	if rule.NAT64Enabled && rule.NAT64ProfileID != "" {
 		prefix := p.rules.GetNAT64PrefixByID(rule.NAT64ProfileID)
