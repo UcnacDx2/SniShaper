@@ -164,7 +164,7 @@ func (rm *RuleManager) isTLSRFCached(host string) bool {
 
 func (rm *RuleManager) markTLSRF(host, reason string) error {
 	host = normalizeHost(host)
-	if host == "" || isLiteralIP(host) {
+	if host == "" {
 		return nil
 	}
 
