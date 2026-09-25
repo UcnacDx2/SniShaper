@@ -219,3 +219,57 @@ func TestTLineSOCKS5DisabledUsesDirectDial(t *testing.T) {
 		t.Fatal("direct target did not finish")
 	}
 }
+
+
+func TestMapNAT64IPv6ToIPv4(t *testing.T) {
+	prefix := "2001:67c:2960:6464::"
+
+	got, ok := mapNAT64IPv6ToIPv4("2001:67c:2960:6464::6812:202f", prefix)
+	if !ok || got != "104.18.32.47" {
+		t.Fatalf("NAT64 reverse mapping: got %q ok=%v, want 104.18.32.47 true", got, ok)
+	}
+
+	if _, ok := mapNAT64IPv6ToIPv4("2001:4860:4860::8888", prefix); ok {
+		t.Fatal("native IPv6 address was incorrectly treated as a NAT64 address")
+	}
+
+	if _, ok := mapNAT64IPv6ToIPv4("104.18.32.47", prefix); ok {
+		t.Fatal("IPv4 address was incorrectly treated as NAT64 IPv6")
+	}
+}
+
+func TestTLineOrderIPsByDNSModeForcesIPv4(t *testing.T) {
+	t.Setenv(tlineSOCKS5Env, "127.0.0.1:10809")
+
+	got := orderIPsByDNSMode([]string{
+		"2001:4860:4860::8888",
+		"104.18.32.47",
+		"142.250.72.4",
+	}, "prefer_ipv6")
+
+	want := []string{"104.18.32.47", "142.250.72.4"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("T-Line candidate filtering: got %v want %v", got, want)
+	}
+}
+
+func TestBuildDialCandidatesReversesNAT64LiteralForTLine(t *testing.T) {
+	t.Setenv(tlineSOCKS5Env, "127.0.0.1:10809")
+
+	p := NewProxyServer("127.0.0.1:0")
+	const nat64ProfileID = "1784437584701131300"
+	target := net.JoinHostPort("2001:67c:2960:6464::6812:202f", "443")
+
+	got := p.buildDialCandidates(
+		context.Background(),
+		"2001:67c:2960:6464::6812:202f",
+		target,
+		Rule{NAT64Enabled: true, NAT64ProfileID: nat64ProfileID},
+		"mitm",
+	)
+
+	want := []string{"104.18.32.47:443"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("T-Line NAT64 literal rewrite: got %v want %v", got, want)
+	}
+}
