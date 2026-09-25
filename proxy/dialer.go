@@ -202,6 +202,27 @@ func (p *ProxyServer) prepareConnect(targetHost, targetAddr string, rule Rule) *
 	}
 }
 
+func (p *ProxyServer) filterTLineDialCandidates(candidates []string) []string {
+	if tlineSOCKS5Addr() == "" {
+		return candidates
+	}
+
+	filtered := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		host, _, err := net.SplitHostPort(candidate)
+		if err != nil {
+			filtered = append(filtered, candidate)
+			continue
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+			p.tracef("[T-Line] skipping IPv6 candidate %s: SOCKS5 transport is currently IPv4-only", candidate)
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+	return filtered
+}
+
 func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 	// When T-Line SOCKS5 is configured, keep normal SniShaper candidate/rule
 	// selection but force the actual TCP upstream socket through T-Line.
@@ -230,6 +251,9 @@ func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 	}
 
 	dialCandidates := p.buildDialCandidates(context.Background(), cr.targetHost, cr.targetAddr, cr.rule, cr.effectiveMode)
+	// The current T-Line SOCKS5 endpoint rejects IPv6 CONNECTs, so remove IPv6
+	// candidates before the initial dial and before handing candidates to MITM.
+	dialCandidates = p.filterTLineDialCandidates(dialCandidates)
 	if len(dialCandidates) == 0 {
 		dialCandidates = []string{cr.targetAddr}
 	}
