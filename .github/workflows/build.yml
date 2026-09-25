@@ -140,7 +140,7 @@ jobs:
   # CGO_ENABLED=0, no cross toolchain. Darwin is handled natively below.
   # ------------------------------------------------------------------
   cli-build:
-    name: CLI (windows + linux, 5 targets)
+    name: CLI (windows + linux, 6 targets)
     runs-on: windows-latest
 
     steps:
@@ -166,18 +166,20 @@ jobs:
             @{ GOOS = 'windows'; GOARCH = 'amd64'; Out = 'build/bin/cli/Windows/x64/snishaper.exe' },
             @{ GOOS = 'windows'; GOARCH = '386';   Out = 'build/bin/cli/Windows/x86/snishaper.exe' },
             @{ GOOS = 'windows'; GOARCH = 'arm64'; Out = 'build/bin/cli/Windows/arm64/snishaper.exe' },
-            @{ GOOS = 'linux';   GOARCH = 'amd64'; Out = 'build/bin/cli/Linux/x64/snishaper' },
-            @{ GOOS = 'linux';   GOARCH = 'arm64'; Out = 'build/bin/cli/Linux/arm64/snishaper' }
+            @{ GOOS = 'linux';   GOARCH = 'amd64'; Out = 'build/bin/cli/Linux/x64/snishaper';   GOARM = $null },
+            @{ GOOS = 'linux';   GOARCH = 'arm';   Out = 'build/bin/cli/Linux/arm/snishaper';   GOARM = '7' },
+            @{ GOOS = 'linux';   GOARCH = 'arm64'; Out = 'build/bin/cli/Linux/arm64/snishaper'; GOARM = $null }
           )
           foreach ($t in $targets) {
             New-Item -ItemType Directory -Force -Path (Split-Path $t.Out) | Out-Null
             $env:GOOS = $t.GOOS
             $env:GOARCH = $t.GOARCH
-            Write-Host "Building $($t.GOOS)/$($t.GOARCH) -> $($t.Out)"
+            if ($null -ne $t.GOARM) { $env:GOARM = $t.GOARM } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
+            Write-Host "Building $($t.GOOS)/$($t.GOARCH)$(if ($null -ne $t.GOARM) { "/$($t.GOARM)" } else { "" }) -> $($t.Out)"
             go build -tags "with_gvisor headless" -trimpath -o $t.Out ./cli
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-          Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
+          Remove-Item Env:GOOS,Env:GOARCH,Env:GOARM -ErrorAction SilentlyContinue
 
           $rulesSrc = Join-Path $env:GITHUB_WORKSPACE 'rules'
           if (-not (Test-Path (Join-Path $rulesSrc 'config.json'))) {
@@ -189,6 +191,7 @@ jobs:
             'build/bin/cli/Windows/x86',
             'build/bin/cli/Windows/arm64',
             'build/bin/cli/Linux/x64',
+            'build/bin/cli/Linux/arm',
             'build/bin/cli/Linux/arm64'
           )
           foreach ($dir in $cliDirs) {
