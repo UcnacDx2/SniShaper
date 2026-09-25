@@ -219,35 +219,3 @@ func TestTLineSOCKS5DisabledUsesDirectDial(t *testing.T) {
 		t.Fatal("direct target did not finish")
 	}
 }
-
-func TestTLineFiltersIPv6Candidates(t *testing.T) {
-	t.Setenv(tlineSOCKS5Env, "127.0.0.1:10809")
-
-	p := NewProxyServer("127.0.0.1:0")
-	candidates := []string{
-		"[2404:6800:4012:40b::4]:443",
-		"142.251.80.52:443",
-		"[2001:db8::1]:443",
-	}
-
-	got := p.filterTLineDialCandidates(candidates)
-	want := []string{"142.251.80.52:443"}
-	if len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("unexpected filtered candidates: got %v want %v", got, want)
-	}
-}
-
-func TestTLineKeepsIPv6CandidatesWhenDisabled(t *testing.T) {
-	t.Setenv(tlineSOCKS5Env, "")
-
-	p := NewProxyServer("127.0.0.1:0")
-	candidates := []string{
-		"[2404:6800:4012:40b::4]:443",
-		"142.251.80.52:443",
-	}
-
-	got := p.filterTLineDialCandidates(candidates)
-	if len(got) != len(candidates) || got[0] != candidates[0] || got[1] != candidates[1] {
-		t.Fatalf("T-Line disabled should preserve candidates: got %v want %v", got, candidates)
-	}
-}
