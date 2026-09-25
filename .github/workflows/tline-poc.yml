@@ -33,7 +33,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path 'build/bin/cli/Windows/x64' | Out-Null
           go build -tags "with_gvisor headless" -trimpath -o 'build/bin/cli/Windows/x64/snishaper.exe' ./cli
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item Env:GOOS,Env:GOARCH -ErrorAction SilentlyContinue
+          $rulesSrc = Join-Path $env:GITHUB_WORKSPACE 'rules'
+          $rulesDst = 'build/bin/cli/Windows/x64/rules'
+          if (-not (Test-Path (Join-Path $rulesSrc 'config.json'))) {
+            Write-Host '::error::repository rules/config.json is missing'
+            exit 1
+          }
+          New-Item -ItemType Directory -Force -Path $rulesDst | Out-Null
+          Copy-Item -Path (Join-Path $rulesSrc '*') -Destination $rulesDst -Recurse -Force
+          Remove-Item Env:GOOS,Env:GOARCH,Env:CGO_ENABLED -ErrorAction SilentlyContinue
 
       - name: Smoke test built CLI
         shell: pwsh
@@ -46,10 +54,13 @@ jobs:
           if (-not $version) { Write-Host '::error::CLI version is empty'; exit 1 }
           & $bin help | Out-Null
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::CLI help failed'; exit 1 }
+          $rules = '.\build\bin\cli\Windows\x64\rules\config.json'
+          if (-not (Test-Path $rules)) { Write-Host '::error::bundled rules/config.json missing'; exit 1 }
+          Write-Host "::notice::Bundled rules: $rules"
 
       - name: Upload Windows x64 PoC binary
         uses: actions/upload-artifact@v7
         with:
           name: snishaper-tline-poc-windows-x64-${{ github.sha }}
           if-no-files-found: error
-          path: build/bin/cli/Windows/x64/snishaper.exe
+          path: build/bin/cli/Windows/x64
