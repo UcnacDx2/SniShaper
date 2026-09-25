@@ -48,15 +48,6 @@ func (p *ProxyServer) handleTLSFragment(clientConn, upstreamConn net.Conn, host 
 		copy(savedRecord, record)
 	}
 
-	modMinorVer := tlsfrag.DefaultTLSRFModMinorVer
-	// T-Line is an outbound SOCKS5 transport. Keep the TLS ClientHello
-	// record version standards-compatible instead of rewriting it to 0x0304.
-	// This is especially important for stricter TLS endpoints such as Google.
-	if tlineSOCKS5Addr() != "" {
-		modMinorVer = false
-		p.tracef("[TLS-RF] T-Line enabled: keeping original TLS record version")
-	}
-
 	err = tlsfrag.SendRecords(
 		upstreamConn,
 		record,
@@ -66,7 +57,7 @@ func (p *ProxyServer) handleTLSFragment(clientConn, upstreamConn net.Conn, host 
 		tlsfrag.DefaultTLSRFNumSegments,
 		tlsfrag.DefaultTLSRFOOB,
 		tlsfrag.DefaultTLSRFOOBEx,
-		modMinorVer,
+		tlsfrag.DefaultTLSRFModMinorVer,
 		tlsfrag.DefaultTLSRFSendInterval,
 	)
 	if err != nil {
