@@ -448,6 +448,7 @@ func (rm *RuleManager) buildRules() {
 		for _, domain := range sg.Domains {
 			rule := Rule{
 				Domain:             domain,
+				Transport:          strings.ToLower(strings.TrimSpace(sg.Transport)),
 				Mode:               sg.Mode,
 				Upstream:           resolvedUpstream,
 				Upstreams:          resolvedUpstreams,
