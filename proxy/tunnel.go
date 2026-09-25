@@ -404,7 +404,7 @@ func (p *ProxyServer) handleHTTP(w http.ResponseWriter, req *http.Request, rule 
 		}
 		targetAddr := ensureAddrWithPort(newReq.URL.Host, defaultPort)
 		dialCandidates := p.buildDialCandidates(req.Context(), normalizeHost(newReq.Host), targetAddr, rule, rule.Mode)
-		if len(dialCandidates) > 0 && dialCandidates[0] != targetAddr {
+		if len(dialCandidates) > 0 && (dialCandidates[0] != targetAddr || strings.TrimSpace(rule.Transport) != "") {
 			t := p.transport.Clone()
 			candidateSet := dedupeDialCandidates(dialCandidates)
 			t.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
